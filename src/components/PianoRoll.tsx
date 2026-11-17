@@ -3,7 +3,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import type { AudioTrack, LiveSample } from "../types";
+import type { AudioTrack, LiveSample, NoteSegment } from "../types";
 
 interface Props {
   track: AudioTrack | null;
@@ -12,6 +12,7 @@ interface Props {
   windowSeconds: number;
   onSeek: (seconds: number) => void;
   isPlaying: boolean;
+  candidateNotes?: NoteSegment[];
 }
 
 const KEY_WIDTH = 59;
@@ -70,6 +71,7 @@ export default function PianoRoll({
   windowSeconds,
   onSeek,
   isPlaying,
+  candidateNotes,
 }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -79,7 +81,7 @@ export default function PianoRoll({
   const viewStart = Math.max(0, time - visibleSeconds * 0.28);
   const duration = track?.buffer.duration ?? 0;
   const pitchRange = useMemo(() => {
-    const pitches = (track?.notes ?? [])
+    const pitches = [...(track?.notes ?? []), ...(candidateNotes ?? [])]
       .map((note) => note.midi)
       .filter(Number.isFinite);
     let low = pitches.length
@@ -98,14 +100,14 @@ export default function PianoRoll({
       high = middle + 9;
     }
     // Keep an isolated transcription outlier from collapsing the useful range.
-    if (high - low > 48) {
+    if (!candidateNotes?.length && high - low > 48) {
       const sorted = [...pitches].sort((a, b) => a - b);
       const middle = sorted[Math.floor(sorted.length / 2)] ?? 57;
       low = Math.floor(middle) - 24;
       high = Math.floor(middle) + 24;
     }
     return { low, high };
-  }, [track]);
+  }, [track, candidateNotes]);
 
   useEffect(() => {
     const node = wrapper.current;
@@ -211,6 +213,26 @@ export default function PianoRoll({
     ctx.beginPath();
     ctx.rect(KEY_WIDTH, RULER_HEIGHT, plotWidth, height - RULER_HEIGHT);
     ctx.clip();
+    // Keep the full transcription visible behind the explicitly chosen line.
+    for (const note of candidateNotes ?? []) {
+      if (note.end < viewStart || note.start > viewStart + visibleSeconds)
+        continue;
+      const left = x(note.start);
+      const noteHeight = Math.min(15, rowHeight * 0.6);
+      roundedRect(
+        ctx,
+        left,
+        y(note.midi) - noteHeight / 2,
+        Math.max(2, x(note.end) - left - 1),
+        noteHeight,
+        2,
+      );
+      ctx.fillStyle = "#a9b7ad18";
+      ctx.fill();
+      ctx.strokeStyle = "#a9b7ad35";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     for (const note of track?.notes ?? []) {
       if (note.end < viewStart) continue;
       if (note.start > viewStart + visibleSeconds) break;
@@ -347,6 +369,7 @@ export default function PianoRoll({
     size,
     isPlaying,
     pitchRange,
+    candidateNotes,
   ]);
 
   const seekPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -420,7 +443,7 @@ export default function PianoRoll({
           <p>Importe uma voz alvo para visualizar as notas.</p>
         </div>
       )}
-      {track && track.notes.length === 0 && (
+      {track && track.notes.length === 0 && !candidateNotes?.length && (
         <div className="empty-roll">
           <span>Nenhuma nota detectada</span>
           <p>Use uma voz isolada e confira o nível da gravação.</p>

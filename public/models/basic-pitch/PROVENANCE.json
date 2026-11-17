@@ -1,0 +1,26 @@
+{
+  "project": "spotify/basic-pitch-ts",
+  "commit": "2d498f82b61c71898edf0e8dd661b99076676c8b",
+  "license": "Apache-2.0",
+  "retrieved": "2026-11-16",
+  "files": [
+    {
+      "file": "model.json",
+      "source": "https://raw.githubusercontent.com/spotify/basic-pitch-ts/2d498f82b61c71898edf0e8dd661b99076676c8b/model/model.json",
+      "bytes": 174537,
+      "sha256": "1ed1aaee3409ec1dc098c8b01f430c0911f6fe9412e7af8086750f9e8f302f68"
+    },
+    {
+      "file": "group1-shard1of1.bin",
+      "source": "https://raw.githubusercontent.com/spotify/basic-pitch-ts/2d498f82b61c71898edf0e8dd661b99076676c8b/model/group1-shard1of1.bin",
+      "bytes": 742392,
+      "sha256": "b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c"
+    },
+    {
+      "file": "LICENSE",
+      "source": "https://raw.githubusercontent.com/spotify/basic-pitch-ts/2d498f82b61c71898edf0e8dd661b99076676c8b/LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

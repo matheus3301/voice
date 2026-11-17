@@ -1,0 +1,2857 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-11-17T01:27:07.432Z",
+  "dataset": {
+    "name": "Vocadito",
+    "zenodoRecord": "5578807",
+    "license": "CC-BY-4.0",
+    "expectedArchiveMd5": "dea40fd18f14d899643c4ba221b33a46",
+    "actualArchiveMd5": "dea40fd18f14d899643c4ba221b33a46",
+    "archiveSha256": "e0d6b99d3f9c594afe5ae5c4d7bdacebe569e53b809e90b89d1c771c4f9990e3",
+    "scope": "entire 40-clip corpus"
+  },
+  "detector": {
+    "source": "src/audio/pitch.ts",
+    "sourceSha256": "56e171ef2ef28ded0ee959ed8dc943e67f4ff01b211c67b0caa4e03433726541",
+    "gitHead": "89e5ce9d07dde7ad707179187f9ee46d36303f34",
+    "sampleRate": 16000,
+    "hopSeconds": 0.025,
+    "windowSamples": 1024,
+    "minimumFrequency": 65,
+    "maximumFrequency": 1200,
+    "confidenceThreshold": 0.82
+  },
+  "runnerSourceSha256": "d491939b9c33b4b7b71eac754ede70ee425ddd63209b26936c2840b78568b0df",
+  "environment": {
+    "node": "v22.22.3",
+    "platform": "darwin/arm64",
+    "ffmpeg": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers"
+  },
+  "evaluation": {
+    "grid": "all reference annotation timestamps inside source audio duration",
+    "alignment": "nearest predicted frame by timestamp; ties choose earlier; no timing shift optimization",
+    "voicing": "reference f0 > 0; predicted f0 > 0 and confidence >=0.82",
+    "toleranceCents": 50,
+    "aggregation": "micro: pooled frame counts, including detector unvoiced as incorrect on reference voiced; macro: unweighted mean of clip metrics",
+    "rawPitchFormula": "abs(1200*log2(estimate/reference)) <= 50",
+    "rawChromaFormula": "abs(cents - 1200*round(cents/1200)) <= 50",
+    "octaveError": "RCA correct and RPA incorrect; sign from round(cents/1200)"
+  },
+  "durationSeconds": 817.1285260770975,
+  "elapsedSeconds": 6.710692041000001,
+  "counts": {
+    "frames": 140782,
+    "referenceVoiced": 92966,
+    "referenceUnvoiced": 47816,
+    "trueVoiced": 85125,
+    "falseAlarm": 4982,
+    "rawCorrect": 78610,
+    "chromaCorrect": 79665,
+    "octaveHigh": 713,
+    "octaveLow": 342,
+    "outOfRangeReference": 0,
+    "lowRmsVoicingMiss": 750
+  },
+  "microMetrics": {
+    "rawPitchAccuracy50c": 84.55779532302132,
+    "rawChromaAccuracy50c": 85.69261880687563,
+    "voicingRecall": 91.56573370909796,
+    "voicingFalseAlarm": 10.419106575204951,
+    "octaveErrorRateOfVoicedReference": 1.1348234838543123,
+    "octaveErrorRateOfDetectedVoiced": 1.2393538913362703
+  },
+  "macroMetrics": {
+    "rawPitchAccuracy50c": 84.08307556722283,
+    "rawChromaAccuracy50c": 84.96864934523865,
+    "voicingRecall": 91.1309852244876,
+    "voicingFalseAlarm": 11.602591025651027,
+    "octaveErrorRateOfVoicedReference": 0.8855737780158114,
+    "octaveErrorRateOfDetectedVoiced": 0.9927709745046132
+  },
+  "clips": [
+    {
+      "id": "vocadito_1",
+      "audio": "Audio/vocadito_1.wav",
+      "annotation": "Annotations/F0/vocadito_1_f0.csv",
+      "audioSha256": "b509768315efad8120183b48e01d6090f1649d5bcc691241940dc7a100274ab8",
+      "annotationSha256": "dd10beba57b94d37b1d3263f5deca3b780adc7ec90f1d43bb00099b02c2878e5",
+      "durationSeconds": 33.21224489795918,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1329,
+      "analysisMilliseconds": 126.32158399999997,
+      "counts": {
+        "frames": 5722,
+        "referenceVoiced": 3642,
+        "referenceUnvoiced": 2080,
+        "trueVoiced": 3357,
+        "falseAlarm": 58,
+        "rawCorrect": 3217,
+        "chromaCorrect": 3220,
+        "octaveHigh": 0,
+        "octaveLow": 3,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 78
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 88.33058758923669,
+        "rawChromaAccuracy50c": 88.41295991213619,
+        "voicingRecall": 92.17462932454696,
+        "voicingFalseAlarm": 2.7884615384615388,
+        "octaveErrorRateOfVoicedReference": 0.08237232289950577,
+        "octaveErrorRateOfDetectedVoiced": 0.08936550491510277
+      },
+      "medianAbsoluteCentsDetected": 6.267982302117195,
+      "grossErrorExamples": [
+        {
+          "time": 2.17687074829932,
+          "reference": 153.389,
+          "estimate": 163.75041323715814,
+          "cents": 113.16422518423921
+        },
+        {
+          "time": 3.81968253968254,
+          "reference": 121.403,
+          "estimate": 113.82656695471731,
+          "cents": -111.56010327749394
+        },
+        {
+          "time": 4.1853968253968254,
+          "reference": 156.781,
+          "estimate": 147.96847541187088,
+          "cents": -100.15306698306749
+        },
+        {
+          "time": 4.632380952380952,
+          "reference": 160.85,
+          "estimate": 170.56518522089735,
+          "cents": 101.52871937653443
+        },
+        {
+          "time": 5.880453514739229,
+          "reference": 131.523,
+          "estimate": 139.9160564453849,
+          "cents": 107.09570451209494
+        },
+        {
+          "time": 7.111111111111112,
+          "reference": 122.104,
+          "estimate": 131.1817141148012,
+          "cents": 124.14740315458751
+        }
+      ]
+    },
+    {
+      "id": "vocadito_2",
+      "audio": "Audio/vocadito_2.wav",
+      "annotation": "Annotations/F0/vocadito_2_f0.csv",
+      "audioSha256": "8dcc99c3b08a9a5800b793e3d65cccfb4464961f15cf8ccde25bd4c8b853d519",
+      "annotationSha256": "4d515029c036312e8d04545470c3d5dc5db3132dec54813624faee7d84cd6363",
+      "durationSeconds": 35.208004535147396,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1409,
+      "analysisMilliseconds": 153.33958399999995,
+      "counts": {
+        "frames": 6066,
+        "referenceVoiced": 4570,
+        "referenceUnvoiced": 1496,
+        "trueVoiced": 4435,
+        "falseAlarm": 24,
+        "rawCorrect": 3922,
+        "chromaCorrect": 4314,
+        "octaveHigh": 392,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 3
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 85.82056892778994,
+        "rawChromaAccuracy50c": 94.39824945295405,
+        "voicingRecall": 97.04595185995623,
+        "voicingFalseAlarm": 1.6042780748663104,
+        "octaveErrorRateOfVoicedReference": 8.577680525164114,
+        "octaveErrorRateOfDetectedVoiced": 8.838782412626832
+      },
+      "medianAbsoluteCentsDetected": 5.270257999599777,
+      "grossErrorExamples": [
+        {
+          "time": 1.7356916099773243,
+          "reference": 283.623,
+          "estimate": 266.50295530778743,
+          "cents": -107.78759901612449
+        },
+        {
+          "time": 3.564263038548753,
+          "reference": 397.907,
+          "estimate": 799.8724489579743,
+          "cents": 1208.8064170468297
+        },
+        {
+          "time": 4.4175963718820865,
+          "reference": 392.192,
+          "estimate": 784.8363716576447,
+          "cents": 1200.9981532898591
+        },
+        {
+          "time": 10.43156462585034,
+          "reference": 406.946,
+          "estimate": 378.5795950366617,
+          "cents": -125.08885681990395
+        },
+        {
+          "time": 10.988843537414967,
+          "reference": 401.19,
+          "estimate": 806.1278217652554,
+          "cents": 1208.067562126367
+        },
+        {
+          "time": 11.215238095238096,
+          "reference": 401.421,
+          "estimate": 802.7956338273924,
+          "cents": 1199.9000139320676
+        }
+      ]
+    },
+    {
+      "id": "vocadito_3",
+      "audio": "Audio/vocadito_3.wav",
+      "annotation": "Annotations/F0/vocadito_3_f0.csv",
+      "audioSha256": "73b6fe13bc3435ae9173ee1bdec247e2943526c70cd9b69ab2b35002fa4cb04d",
+      "annotationSha256": "18f48fc77df7dd43c1e4bc588a79482b1d330768d63b76b90e82998573582b6a",
+      "durationSeconds": 21.736326530612246,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 870,
+      "analysisMilliseconds": 70.40224999999998,
+      "counts": {
+        "frames": 3745,
+        "referenceVoiced": 2206,
+        "referenceUnvoiced": 1539,
+        "trueVoiced": 1967,
+        "falseAlarm": 43,
+        "rawCorrect": 1884,
+        "chromaCorrect": 1884,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 92
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 85.40344514959202,
+        "rawChromaAccuracy50c": 85.40344514959202,
+        "voicingRecall": 89.16591115140527,
+        "voicingFalseAlarm": 2.7940220922677064,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 6.0232346498926805,
+      "grossErrorExamples": [
+        {
+          "time": 4.295691609977324,
+          "reference": 166.573,
+          "estimate": 156.52769169928015,
+          "cents": -107.68399339909324
+        },
+        {
+          "time": 6.530612244897959,
+          "reference": 152.442,
+          "estimate": 138.37309183534757,
+          "cents": -167.63642255280269
+        },
+        {
+          "time": 6.884716553287982,
+          "reference": 133.471,
+          "estimate": 148.9474230933778,
+          "cents": 189.93222073580074
+        },
+        {
+          "time": 8.301133786848073,
+          "reference": 201.249,
+          "estimate": 186.6610618926747,
+          "cents": -130.27272778532574
+        },
+        {
+          "time": 10.84952380952381,
+          "reference": 156.06,
+          "estimate": 146.91101657223874,
+          "cents": -104.58986431273581
+        },
+        {
+          "time": 16.410702947845806,
+          "reference": 139.588,
+          "estimate": 130.91931676797765,
+          "cents": -110.99633259807167
+        }
+      ]
+    },
+    {
+      "id": "vocadito_4",
+      "audio": "Audio/vocadito_4.wav",
+      "annotation": "Annotations/F0/vocadito_4_f0.csv",
+      "audioSha256": "fc07b202eb609c975d1549be5320db116a49be1bd1fc6904e70e31cd7e44ec23",
+      "annotationSha256": "fb0a5b73a66edc0bac5aaec64f82eccd95d5a54781b354ab9020056803cf3d08",
+      "durationSeconds": 18.456009070294783,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 739,
+      "analysisMilliseconds": 90.17450000000008,
+      "counts": {
+        "frames": 3180,
+        "referenceVoiced": 2463,
+        "referenceUnvoiced": 717,
+        "trueVoiced": 2117,
+        "falseAlarm": 25,
+        "rawCorrect": 1968,
+        "chromaCorrect": 1968,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 79.90255785627284,
+        "rawChromaAccuracy50c": 79.90255785627284,
+        "voicingRecall": 85.95209094600081,
+        "voicingFalseAlarm": 3.486750348675035,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 9.180724289255485,
+      "grossErrorExamples": [
+        {
+          "time": 2.403265306122449,
+          "reference": 109.482,
+          "estimate": 116.56990593690685,
+          "cents": 108.60202897966037
+        },
+        {
+          "time": 4.899410430839002,
+          "reference": 134.006,
+          "estimate": 144.42767629492246,
+          "cents": 129.65955725139136
+        },
+        {
+          "time": 6.478367346938776,
+          "reference": 104.874,
+          "estimate": 111.11690626848473,
+          "cents": 100.10553961910234
+        },
+        {
+          "time": 6.8789115646258505,
+          "reference": 106.163,
+          "estimate": 99.33401447501164,
+          "cents": -115.10558641966567
+        },
+        {
+          "time": 10.054240362811791,
+          "reference": 119.176,
+          "estimate": 112.24862096962066,
+          "cents": -103.67521223519817
+        },
+        {
+          "time": 10.530249433106576,
+          "reference": 145.524,
+          "estimate": 134.43412721343282,
+          "cents": -137.2292149961483
+        }
+      ]
+    },
+    {
+      "id": "vocadito_5",
+      "audio": "Audio/vocadito_5.wav",
+      "annotation": "Annotations/F0/vocadito_5_f0.csv",
+      "audioSha256": "7cecfd126a9437f88db0a297cdab3075bb38faeef10f1a98f22ba22a2a939220",
+      "annotationSha256": "561eb6ac03530a3219cf1a8eab9f0c14b1c4571185f0e059b61643325e4642ca",
+      "durationSeconds": 23.23199546485261,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 930,
+      "analysisMilliseconds": 109.58791699999983,
+      "counts": {
+        "frames": 4003,
+        "referenceVoiced": 2895,
+        "referenceUnvoiced": 1108,
+        "trueVoiced": 2682,
+        "falseAlarm": 245,
+        "rawCorrect": 2501,
+        "chromaCorrect": 2501,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 86.39032815198618,
+        "rawChromaAccuracy50c": 86.39032815198618,
+        "voicingRecall": 92.64248704663213,
+        "voicingFalseAlarm": 22.111913357400724,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 9.415998474474515,
+      "grossErrorExamples": [
+        {
+          "time": 0.28444444444444444,
+          "reference": 230.793,
+          "estimate": 212.90372684384667,
+          "cents": -139.67791591159815
+        },
+        {
+          "time": 0.8359183673469388,
+          "reference": 276.389,
+          "estimate": 260.7526309926927,
+          "cents": -100.82206737020933
+        },
+        {
+          "time": 3.2565986394557824,
+          "reference": 227.409,
+          "estimate": 212.35876829349644,
+          "cents": -118.54280766662043
+        },
+        {
+          "time": 6.135873015873016,
+          "reference": 210.935,
+          "estimate": 198.08403649366005,
+          "cents": -108.82305551442991
+        },
+        {
+          "time": 8.562358276643991,
+          "reference": 188.538,
+          "estimate": 200.9263700502454,
+          "cents": 110.17390792350949
+        },
+        {
+          "time": 8.933877551020409,
+          "reference": 209.882,
+          "estimate": 197.05047714028797,
+          "cents": -109.21583999784487
+        }
+      ]
+    },
+    {
+      "id": "vocadito_6",
+      "audio": "Audio/vocadito_6.wav",
+      "annotation": "Annotations/F0/vocadito_6_f0.csv",
+      "audioSha256": "13816752a6366f2d66f21e71a70d55e22b6a44f0d1712d97abff5390bc0c1f3b",
+      "annotationSha256": "443e7f37172ef683f687fba39ab87710f22af2227e8fdb9031b2faa3002eb002",
+      "durationSeconds": 23.831995464852607,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 954,
+      "analysisMilliseconds": 124.43620899999996,
+      "counts": {
+        "frames": 4106,
+        "referenceVoiced": 2813,
+        "referenceUnvoiced": 1293,
+        "trueVoiced": 2696,
+        "falseAlarm": 88,
+        "rawCorrect": 2340,
+        "chromaCorrect": 2349,
+        "octaveHigh": 0,
+        "octaveLow": 9,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 83.18521151795237,
+        "rawChromaAccuracy50c": 83.50515463917526,
+        "voicingRecall": 95.84073942410238,
+        "voicingFalseAlarm": 6.805877803557618,
+        "octaveErrorRateOfVoicedReference": 0.3199431212228937,
+        "octaveErrorRateOfDetectedVoiced": 0.33382789317507416
+      },
+      "medianAbsoluteCentsDetected": 11.463223281146718,
+      "grossErrorExamples": [
+        {
+          "time": 1.2829024943310658,
+          "reference": 234.389,
+          "estimate": 217.3773565968946,
+          "cents": -130.44383636737933
+        },
+        {
+          "time": 3.006984126984127,
+          "reference": 377.173,
+          "estimate": 350.4301143170348,
+          "cents": -127.31957449956951
+        },
+        {
+          "time": 3.7616326530612247,
+          "reference": 263.93,
+          "estimate": 279.818432431652,
+          "cents": 101.20278474230277
+        },
+        {
+          "time": 5.253514739229025,
+          "reference": 273.868,
+          "estimate": 256.2564506996398,
+          "cents": -115.07085955179336
+        },
+        {
+          "time": 7.012426303854875,
+          "reference": 217.432,
+          "estimate": 232.96231797533827,
+          "cents": 119.43880150114235
+        },
+        {
+          "time": 8.632018140589569,
+          "reference": 365.356,
+          "estimate": 341.141654094183,
+          "cents": -118.71837388832712
+        }
+      ]
+    },
+    {
+      "id": "vocadito_7",
+      "audio": "Audio/vocadito_7.wav",
+      "annotation": "Annotations/F0/vocadito_7_f0.csv",
+      "audioSha256": "db9542f0626f4c43ab1e4f26ae9e40834bcfe5f061b07c75a3925d95aaa79676",
+      "annotationSha256": "9dfd339c44bd32a8891288ea3625fcda703932fe76c4ce8f073c005874f63393",
+      "durationSeconds": 19.46734693877551,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 779,
+      "analysisMilliseconds": 67.97308300000009,
+      "counts": {
+        "frames": 3354,
+        "referenceVoiced": 1996,
+        "referenceUnvoiced": 1358,
+        "trueVoiced": 1856,
+        "falseAlarm": 141,
+        "rawCorrect": 1770,
+        "chromaCorrect": 1770,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 14
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 88.67735470941884,
+        "rawChromaAccuracy50c": 88.67735470941884,
+        "voicingRecall": 92.98597194388778,
+        "voicingFalseAlarm": 10.382916053019146,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 9.728818024460075,
+      "grossErrorExamples": [
+        {
+          "time": 3.784852607709751,
+          "reference": 337.7,
+          "estimate": 362.91433881674794,
+          "cents": 124.66425571457107
+        },
+        {
+          "time": 4.858775510204082,
+          "reference": 380.573,
+          "estimate": 357.9403139524081,
+          "cents": -106.14500656809126
+        },
+        {
+          "time": 8.109569160997733,
+          "reference": 225.042,
+          "estimate": 240.71711566980008,
+          "cents": 116.57333494170457
+        },
+        {
+          "time": 8.353378684807256,
+          "reference": 228.282,
+          "estimate": 207.72427514711237,
+          "cents": -163.37674200030173
+        },
+        {
+          "time": 11.377777777777778,
+          "reference": 340.948,
+          "estimate": 294.20419562944153,
+          "cents": -255.28068134959483
+        },
+        {
+          "time": 12.637460317460318,
+          "reference": 318.426,
+          "estimate": 340.85859037728596,
+          "cents": 117.85824416149698
+        }
+      ]
+    },
+    {
+      "id": "vocadito_8",
+      "audio": "Audio/vocadito_8.wav",
+      "annotation": "Annotations/F0/vocadito_8_f0.csv",
+      "audioSha256": "05ce2b3f1991035d08db269df1c39b198d9ddc22130ce88f9a8d97e46cd7a310",
+      "annotationSha256": "d4865ca325062a0985f8c8cf099844d9430ad445668bbd8d6bc3f786a346b457",
+      "durationSeconds": 17.041632653061225,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 682,
+      "analysisMilliseconds": 54.556125000000065,
+      "counts": {
+        "frames": 2936,
+        "referenceVoiced": 1545,
+        "referenceUnvoiced": 1391,
+        "trueVoiced": 1370,
+        "falseAlarm": 30,
+        "rawCorrect": 1314,
+        "chromaCorrect": 1318,
+        "octaveHigh": 0,
+        "octaveLow": 4,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 27
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 85.04854368932038,
+        "rawChromaAccuracy50c": 85.30744336569579,
+        "voicingRecall": 88.67313915857605,
+        "voicingFalseAlarm": 2.156721782890007,
+        "octaveErrorRateOfVoicedReference": 0.2588996763754045,
+        "octaveErrorRateOfDetectedVoiced": 0.291970802919708
+      },
+      "medianAbsoluteCentsDetected": 5.359791670172026,
+      "grossErrorExamples": [
+        {
+          "time": 0.9810430839002268,
+          "reference": 117.303,
+          "estimate": 125.3413987973645,
+          "cents": 114.74770583253779
+        },
+        {
+          "time": 2.29297052154195,
+          "reference": 134.427,
+          "estimate": 67.67793026447245,
+          "cents": -1188.0786991020543
+        },
+        {
+          "time": 7.262040816326531,
+          "reference": 128.635,
+          "estimate": 136.75656537882003,
+          "cents": 105.9922315492622
+        },
+        {
+          "time": 11.58095238095238,
+          "reference": 129.142,
+          "estimate": 138.67980385497694,
+          "cents": 123.35931120461471
+        }
+      ]
+    },
+    {
+      "id": "vocadito_9",
+      "audio": "Audio/vocadito_9.wav",
+      "annotation": "Annotations/F0/vocadito_9_f0.csv",
+      "audioSha256": "f980cc7df935c0c9e839b25759de72fadad6763c069be96645be46f8dd3ffd32",
+      "annotationSha256": "b5936116058e717ec4fda99ddc323d471059debd9fb599809c59a41888c48126",
+      "durationSeconds": 20.375011337868482,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 815,
+      "analysisMilliseconds": 67.58279199999993,
+      "counts": {
+        "frames": 3510,
+        "referenceVoiced": 2071,
+        "referenceUnvoiced": 1439,
+        "trueVoiced": 1902,
+        "falseAlarm": 123,
+        "rawCorrect": 1730,
+        "chromaCorrect": 1735,
+        "octaveHigh": 0,
+        "octaveLow": 5,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 61
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 83.53452438435538,
+        "rawChromaAccuracy50c": 83.77595364558185,
+        "voicingRecall": 91.83969097054563,
+        "voicingFalseAlarm": 8.547602501737316,
+        "octaveErrorRateOfVoicedReference": 0.24142926122646063,
+        "octaveErrorRateOfDetectedVoiced": 0.26288117770767616
+      },
+      "medianAbsoluteCentsDetected": 10.31479388297645,
+      "grossErrorExamples": [
+        {
+          "time": 0.8243083900226758,
+          "reference": 150.185,
+          "estimate": 159.87588790942624,
+          "cents": 108.25397187431743
+        },
+        {
+          "time": 3.21015873015873,
+          "reference": 307.37,
+          "estimate": 288.7345856276355,
+          "cents": -108.27891924787839
+        },
+        {
+          "time": 3.7616326530612247,
+          "reference": 372.894,
+          "estimate": 348.7543312118073,
+          "cents": -115.86533975579776
+        },
+        {
+          "time": 5.282539682539682,
+          "reference": 248.107,
+          "estimate": 232.94119790567123,
+          "cents": -109.19594733143951
+        },
+        {
+          "time": 5.485714285714286,
+          "reference": 351.092,
+          "estimate": 314.2512311248686,
+          "cents": -191.91687197634948
+        },
+        {
+          "time": 6.002358276643991,
+          "reference": 346.066,
+          "estimate": 372.52944971618797,
+          "cents": 127.5687266829739
+        }
+      ]
+    },
+    {
+      "id": "vocadito_10",
+      "audio": "Audio/vocadito_10.wav",
+      "annotation": "Annotations/F0/vocadito_10_f0.csv",
+      "audioSha256": "0978bde1c130ae26a9cfcd90012f12fdaf9877bbe45cf21c5237ba7ac9b8703b",
+      "annotationSha256": "b62573c234fe091acdc7f7ac75259df12d5a8b2bd89f5b803bfc0f433c085e96",
+      "durationSeconds": 9.097823129251701,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 364,
+      "analysisMilliseconds": 43.83741700000019,
+      "counts": {
+        "frames": 1568,
+        "referenceVoiced": 1180,
+        "referenceUnvoiced": 388,
+        "trueVoiced": 1002,
+        "falseAlarm": 125,
+        "rawCorrect": 920,
+        "chromaCorrect": 920,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 77.96610169491525,
+        "rawChromaAccuracy50c": 77.96610169491525,
+        "voicingRecall": 84.91525423728814,
+        "voicingFalseAlarm": 32.21649484536083,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 11.552567330403495,
+      "grossErrorExamples": [
+        {
+          "time": 0.9287981859410431,
+          "reference": 109.057,
+          "estimate": 116.05941145851939,
+          "cents": 107.73737207694441
+        },
+        {
+          "time": 2.4439002267573695,
+          "reference": 179.012,
+          "estimate": 190.71145825368305,
+          "cents": 109.60226937429559
+        },
+        {
+          "time": 3.1579138321995464,
+          "reference": 123.592,
+          "estimate": 132.39270919555912,
+          "cents": 119.08597667106312
+        },
+        {
+          "time": 3.3610884353741497,
+          "reference": 99.6135,
+          "estimate": 106.74146035879072,
+          "cents": 119.64896916667168
+        },
+        {
+          "time": 7.308480725623583,
+          "reference": 134.987,
+          "estimate": 144.964249946214,
+          "cents": 123.45201900164692
+        },
+        {
+          "time": 7.511655328798186,
+          "reference": 116.94,
+          "estimate": 124.97374085320654,
+          "cents": 115.02779411142308
+        }
+      ]
+    },
+    {
+      "id": "vocadito_11",
+      "audio": "Audio/vocadito_11.wav",
+      "annotation": "Annotations/F0/vocadito_11_f0.csv",
+      "audioSha256": "c4d669eca7e25c5037b191805b54b2c990d5e31bc77c9c77188b140100297197",
+      "annotationSha256": "3649b1c134df2c7630e37f614adf05b67b186f3f494a8cc6551a12b3d8a593d1",
+      "durationSeconds": 12.983990929705216,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 520,
+      "analysisMilliseconds": 57.355375000000095,
+      "counts": {
+        "frames": 2237,
+        "referenceVoiced": 1707,
+        "referenceUnvoiced": 530,
+        "trueVoiced": 1594,
+        "falseAlarm": 83,
+        "rawCorrect": 1499,
+        "chromaCorrect": 1499,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 1
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 87.8148799062683,
+        "rawChromaAccuracy50c": 87.8148799062683,
+        "voicingRecall": 93.3801991798477,
+        "voicingFalseAlarm": 15.660377358490566,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 8.249854337175298,
+      "grossErrorExamples": [
+        {
+          "time": 2.153650793650794,
+          "reference": 197.178,
+          "estimate": 212.32880994217138,
+          "cents": 128.16185321564492
+        },
+        {
+          "time": 3.221768707482993,
+          "reference": 294.037,
+          "estimate": 271.91296745770524,
+          "cents": -135.42330305997228
+        },
+        {
+          "time": 3.680362811791383,
+          "reference": 250.908,
+          "estimate": 268.54486026102876,
+          "cents": 117.60556685781238
+        },
+        {
+          "time": 4.574331065759638,
+          "reference": 261.719,
+          "estimate": 236.7435688657035,
+          "cents": -173.6321135965224
+        },
+        {
+          "time": 5.712108843537415,
+          "reference": 300.879,
+          "estimate": 320.86963221879404,
+          "cents": 111.36460776414594
+        },
+        {
+          "time": 6.2345578231292516,
+          "reference": 255.659,
+          "estimate": 272.3049152521795,
+          "cents": 109.20265167843985
+        }
+      ]
+    },
+    {
+      "id": "vocadito_12",
+      "audio": "Audio/vocadito_12.wav",
+      "annotation": "Annotations/F0/vocadito_12_f0.csv",
+      "audioSha256": "5a342e32b20b3764a9ab9784abbf7bac6db69583ec529fc9027f96c69df04e00",
+      "annotationSha256": "c58207b659b08a3ba35baeda01d3ac31231a4c8e5c3b3906ccdc37799e6d0b34",
+      "durationSeconds": 15.153492063492063,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 607,
+      "analysisMilliseconds": 65.53741599999967,
+      "counts": {
+        "frames": 2611,
+        "referenceVoiced": 1941,
+        "referenceUnvoiced": 670,
+        "trueVoiced": 1905,
+        "falseAlarm": 105,
+        "rawCorrect": 1865,
+        "chromaCorrect": 1869,
+        "octaveHigh": 0,
+        "octaveLow": 4,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 96.08449252962392,
+        "rawChromaAccuracy50c": 96.29057187017001,
+        "voicingRecall": 98.145285935085,
+        "voicingFalseAlarm": 15.671641791044777,
+        "octaveErrorRateOfVoicedReference": 0.20607934054611027,
+        "octaveErrorRateOfDetectedVoiced": 0.2099737532808399
+      },
+      "medianAbsoluteCentsDetected": 4.827040241523203,
+      "grossErrorExamples": [
+        {
+          "time": 1.0681179138321997,
+          "reference": 180.668,
+          "estimate": 89.80247813362226,
+          "cents": -1210.2166027998
+        },
+        {
+          "time": 8.632018140589569,
+          "reference": 212.592,
+          "estimate": 197.91272930019375,
+          "cents": -123.86748229225442
+        }
+      ]
+    },
+    {
+      "id": "vocadito_13",
+      "audio": "Audio/vocadito_13.wav",
+      "annotation": "Annotations/F0/vocadito_13_f0.csv",
+      "audioSha256": "5a26861f99c4d02a3efe2355215de2774fb51257cc2d2bf6021827b64e25ec94",
+      "annotationSha256": "db131bc7ac4413649c4c20a9938fc7af66a731367c769fcc91480a9f27d95847",
+      "durationSeconds": 22.36,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 895,
+      "analysisMilliseconds": 116.51158299999997,
+      "counts": {
+        "frames": 3852,
+        "referenceVoiced": 2527,
+        "referenceUnvoiced": 1325,
+        "trueVoiced": 2218,
+        "falseAlarm": 101,
+        "rawCorrect": 2005,
+        "chromaCorrect": 2005,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 79.34309457855164,
+        "rawChromaAccuracy50c": 79.34309457855164,
+        "voicingRecall": 87.77206173328057,
+        "voicingFalseAlarm": 7.622641509433962,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 12.930695061717142,
+      "grossErrorExamples": [
+        {
+          "time": 1.0332879818594105,
+          "reference": 146.434,
+          "estimate": 137.63927606229896,
+          "cents": -107.23002929583265
+        },
+        {
+          "time": 1.3293424036281178,
+          "reference": 150.713,
+          "estimate": 161.22193926691057,
+          "cents": 116.69305976010253
+        },
+        {
+          "time": 2.960544217687075,
+          "reference": 132.403,
+          "estimate": 143.09492828380763,
+          "cents": 134.44407391706127
+        },
+        {
+          "time": 4.08671201814059,
+          "reference": 145.187,
+          "estimate": 135.8610502380538,
+          "cents": -114.93644270850021
+        },
+        {
+          "time": 4.73687074829932,
+          "reference": 135.435,
+          "estimate": 143.85151498384823,
+          "cents": 104.3757566596868
+        },
+        {
+          "time": 8.550748299319729,
+          "reference": 189.892,
+          "estimate": 176.0541279063793,
+          "cents": -130.99208757780366
+        }
+      ]
+    },
+    {
+      "id": "vocadito_14",
+      "audio": "Audio/vocadito_14.wav",
+      "annotation": "Annotations/F0/vocadito_14_f0.csv",
+      "audioSha256": "a41e814df6ee5840f0beaea5da2ab3ad6b38be62b169da08962a722bcc06cdd1",
+      "annotationSha256": "4d765f594d38e18ab514ab1afba93147ac6564be4cfc62f9c268de0e9949f88c",
+      "durationSeconds": 12.1978231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 488,
+      "analysisMilliseconds": 52.51820799999996,
+      "counts": {
+        "frames": 2102,
+        "referenceVoiced": 1428,
+        "referenceUnvoiced": 674,
+        "trueVoiced": 1332,
+        "falseAlarm": 93,
+        "rawCorrect": 1219,
+        "chromaCorrect": 1219,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 9
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 85.3641456582633,
+        "rawChromaAccuracy50c": 85.3641456582633,
+        "voicingRecall": 93.27731092436974,
+        "voicingFalseAlarm": 13.798219584569733,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 11.315885957748286,
+      "grossErrorExamples": [
+        {
+          "time": 4.951655328798186,
+          "reference": 179.423,
+          "estimate": 193.04284117754582,
+          "cents": 126.667457882472
+        },
+        {
+          "time": 5.712108843537415,
+          "reference": 253.599,
+          "estimate": 269.93994912932635,
+          "cents": 108.10733312009444
+        },
+        {
+          "time": 7.203990929705215,
+          "reference": 255.663,
+          "estimate": 234.23150645191663,
+          "cents": -151.56988882567765
+        },
+        {
+          "time": 7.859954648526077,
+          "reference": 312.371,
+          "estimate": 294.5531273444542,
+          "cents": -101.67918212466809
+        },
+        {
+          "time": 9.235736961451247,
+          "reference": 206.354,
+          "estimate": 220.1437363500575,
+          "cents": 111.98927094707182
+        },
+        {
+          "time": 9.833650793650794,
+          "reference": 249.926,
+          "estimate": 233.50214239694995,
+          "cents": -117.678248552564
+        }
+      ]
+    },
+    {
+      "id": "vocadito_15",
+      "audio": "Audio/vocadito_15.wav",
+      "annotation": "Annotations/F0/vocadito_15_f0.csv",
+      "audioSha256": "0bc39b00e14881b20756f48530a4688e1bb7aa1c24ee09d4351a327e3acce28d",
+      "annotationSha256": "740a77c865d6dcdae2af05328230d88c97cc2d95a54a4ef44d1cde49a53afafa",
+      "durationSeconds": 20.28,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 812,
+      "analysisMilliseconds": 77.13112499999988,
+      "counts": {
+        "frames": 3494,
+        "referenceVoiced": 2314,
+        "referenceUnvoiced": 1180,
+        "trueVoiced": 2043,
+        "falseAlarm": 94,
+        "rawCorrect": 1892,
+        "chromaCorrect": 1931,
+        "octaveHigh": 36,
+        "octaveLow": 3,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 115
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 81.76318063958513,
+        "rawChromaAccuracy50c": 83.4485738980121,
+        "voicingRecall": 88.28867761452031,
+        "voicingFalseAlarm": 7.966101694915253,
+        "octaveErrorRateOfVoicedReference": 1.6853932584269662,
+        "octaveErrorRateOfDetectedVoiced": 1.908957415565345
+      },
+      "medianAbsoluteCentsDetected": 9.262478321375777,
+      "grossErrorExamples": [
+        {
+          "time": 0.9926530612244898,
+          "reference": 155.92,
+          "estimate": 78.46616321693364,
+          "cents": -1188.796119064855
+        },
+        {
+          "time": 3.587482993197279,
+          "reference": 302.685,
+          "estimate": 285.52847713162635,
+          "cents": -101.01905084169425
+        },
+        {
+          "time": 4.12734693877551,
+          "reference": 250.46,
+          "estimate": 266.57570513879546,
+          "cents": 107.95810706911556
+        },
+        {
+          "time": 5.915283446712018,
+          "reference": 360.779,
+          "estimate": 716.1036927985418,
+          "cents": 1186.863769559589
+        },
+        {
+          "time": 7.581315192743764,
+          "reference": 404.488,
+          "estimate": 431.86114005426026,
+          "cents": 113.36472289729045
+        },
+        {
+          "time": 12.091791383219954,
+          "reference": 411.326,
+          "estimate": 820.9497948391709,
+          "cents": 1196.414074752435
+        }
+      ]
+    },
+    {
+      "id": "vocadito_16",
+      "audio": "Audio/vocadito_16.wav",
+      "annotation": "Annotations/F0/vocadito_16_f0.csv",
+      "audioSha256": "595e80b5382812702e64d5b6a8f453d9744391166d47c7020cc1d6e71e310e25",
+      "annotationSha256": "fb06556c007943d6d2793af5dd6ba0ac43a1ab5e1180777bfc795564028ea8cf",
+      "durationSeconds": 17.277142857142856,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 692,
+      "analysisMilliseconds": 64.0555830000003,
+      "counts": {
+        "frames": 2977,
+        "referenceVoiced": 1877,
+        "referenceUnvoiced": 1100,
+        "trueVoiced": 1771,
+        "falseAlarm": 112,
+        "rawCorrect": 1651,
+        "chromaCorrect": 1651,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 31
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 87.95950985615345,
+        "rawChromaAccuracy50c": 87.95950985615345,
+        "voicingRecall": 94.3526904635056,
+        "voicingFalseAlarm": 10.181818181818182,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 9.20681710921542,
+      "grossErrorExamples": [
+        {
+          "time": 3.8254875283446714,
+          "reference": 215.52,
+          "estimate": 228.49664008728885,
+          "cents": 101.22143462291076
+        },
+        {
+          "time": 4.284081632653061,
+          "reference": 206.78,
+          "estimate": 190.1533998041283,
+          "cents": -145.11950368623584
+        },
+        {
+          "time": 4.684625850340137,
+          "reference": 240.845,
+          "estimate": 279.2348972129402,
+          "cents": 256.0491350609261
+        },
+        {
+          "time": 5.8572335600907035,
+          "reference": 168.172,
+          "estimate": 178.2288289949732,
+          "cents": 100.55183186698892
+        },
+        {
+          "time": 6.298412698412698,
+          "reference": 270.907,
+          "estimate": 291.8871656311591,
+          "cents": 129.1357253858967
+        },
+        {
+          "time": 7.227210884353742,
+          "reference": 217.812,
+          "estimate": 203.3254706167916,
+          "cents": -119.15098324210534
+        }
+      ]
+    },
+    {
+      "id": "vocadito_17",
+      "audio": "Audio/vocadito_17.wav",
+      "annotation": "Annotations/F0/vocadito_17_f0.csv",
+      "audioSha256": "4b144cdbbcdb318f19c0aa5ac1e2675dbe8d6cb8941286d251959f25e4c96998",
+      "annotationSha256": "d865f0cd526a030f19ba674ebf6c8956fdd8d8b4a0732a539fdb5a35ee86dc29",
+      "durationSeconds": 23.56800453514739,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 943,
+      "analysisMilliseconds": 95.07504100000006,
+      "counts": {
+        "frames": 4060,
+        "referenceVoiced": 3303,
+        "referenceUnvoiced": 757,
+        "trueVoiced": 2935,
+        "falseAlarm": 3,
+        "rawCorrect": 2678,
+        "chromaCorrect": 2721,
+        "octaveHigh": 39,
+        "octaveLow": 4,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 250
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 81.0778080532849,
+        "rawChromaAccuracy50c": 82.37965485921889,
+        "voicingRecall": 88.85861338177415,
+        "voicingFalseAlarm": 0.3963011889035667,
+        "octaveErrorRateOfVoicedReference": 1.3018468059339994,
+        "octaveErrorRateOfDetectedVoiced": 1.465076660988075
+      },
+      "medianAbsoluteCentsDetected": 7.111719008502848,
+      "grossErrorExamples": [
+        {
+          "time": 1.3467573696145125,
+          "reference": 217.26,
+          "estimate": 202.8800863164977,
+          "cents": -118.55438190588774
+        },
+        {
+          "time": 1.8169614512471655,
+          "reference": 367.053,
+          "estimate": 733.3210999694942,
+          "cents": 1198.1479886973038
+        },
+        {
+          "time": 2.681904761904762,
+          "reference": 274.087,
+          "estimate": 291.1277724064297,
+          "cents": 104.42228494958202
+        },
+        {
+          "time": 2.9895691609977324,
+          "reference": 276.021,
+          "estimate": 827.9814250080742,
+          "cents": 1901.7844433591322
+        },
+        {
+          "time": 4.562721088435374,
+          "reference": 332.219,
+          "estimate": 312.74064847976734,
+          "cents": -104.60140716438883
+        },
+        {
+          "time": 4.940045351473923,
+          "reference": 368.192,
+          "estimate": 739.6425751887733,
+          "cents": 1207.6439890419852
+        }
+      ]
+    },
+    {
+      "id": "vocadito_18",
+      "audio": "Audio/vocadito_18.wav",
+      "annotation": "Annotations/F0/vocadito_18_f0.csv",
+      "audioSha256": "4f2a3712dd912b235990f3505593200172da3f386c80db91dfaeb04fc641c929",
+      "annotationSha256": "83ad770e3afd14cad289bf4f7b2ec3a745c12d0fd047d031da70d8de24fda34b",
+      "durationSeconds": 29.138820861678006,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1166,
+      "analysisMilliseconds": 92.32908399999997,
+      "counts": {
+        "frames": 5020,
+        "referenceVoiced": 2241,
+        "referenceUnvoiced": 2779,
+        "trueVoiced": 2138,
+        "falseAlarm": 132,
+        "rawCorrect": 1967,
+        "chromaCorrect": 1967,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 87.77331548415886,
+        "rawChromaAccuracy50c": 87.77331548415886,
+        "voicingRecall": 95.40383757251227,
+        "voicingFalseAlarm": 4.749910039582584,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 9.37561842688296,
+      "grossErrorExamples": [
+        {
+          "time": 0.6965986394557824,
+          "reference": 192.641,
+          "estimate": 206.13901155901593,
+          "cents": 117.2433272952364
+        },
+        {
+          "time": 2.2058956916099772,
+          "reference": 204.147,
+          "estimate": 216.90232677268105,
+          "cents": 104.92459487889124
+        },
+        {
+          "time": 8.974512471655329,
+          "reference": 108.982,
+          "estimate": 101.21510819074327,
+          "cents": -127.99826112254709
+        },
+        {
+          "time": 12.60843537414966,
+          "reference": 167.505,
+          "estimate": 155.80088286023204,
+          "cents": -125.40090223503478
+        },
+        {
+          "time": 12.904489795918368,
+          "reference": 147.527,
+          "estimate": 157.32546031183276,
+          "cents": 111.32777661501389
+        },
+        {
+          "time": 13.502403628117914,
+          "reference": 115.361,
+          "estimate": 122.67851048366236,
+          "cents": 106.47237540137583
+        }
+      ]
+    },
+    {
+      "id": "vocadito_19",
+      "audio": "Audio/vocadito_19.wav",
+      "annotation": "Annotations/F0/vocadito_19_f0.csv",
+      "audioSha256": "8f6d828d65f723ca602abaf8b28a5e8bdc510d37951556b86ff8b6d07889af28",
+      "annotationSha256": "12b8692cdc1d08d9813ce6c5d93105a43321155f78eeb331afd4a04df3cd58ce",
+      "durationSeconds": 30.493492063492063,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1220,
+      "analysisMilliseconds": 137.98954200000026,
+      "counts": {
+        "frames": 5253,
+        "referenceVoiced": 3352,
+        "referenceUnvoiced": 1901,
+        "trueVoiced": 3012,
+        "falseAlarm": 247,
+        "rawCorrect": 2760,
+        "chromaCorrect": 2765,
+        "octaveHigh": 5,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 82.33890214797135,
+        "rawChromaAccuracy50c": 82.48806682577565,
+        "voicingRecall": 89.85680190930788,
+        "voicingFalseAlarm": 12.993161493950552,
+        "octaveErrorRateOfVoicedReference": 0.14916467780429593,
+        "octaveErrorRateOfDetectedVoiced": 0.16600265604249667
+      },
+      "medianAbsoluteCentsDetected": 12.061931429579952,
+      "grossErrorExamples": [
+        {
+          "time": 2.1362358276643993,
+          "reference": 209.024,
+          "estimate": 196.40853829626627,
+          "cents": -107.77314371014064
+        },
+        {
+          "time": 2.48453514739229,
+          "reference": 222.286,
+          "estimate": 236.76303951518022,
+          "cents": 109.23215462367757
+        },
+        {
+          "time": 2.728344671201814,
+          "reference": 206.053,
+          "estimate": 220.92819930748541,
+          "cents": 120.67452931445087
+        },
+        {
+          "time": 3.384308390022676,
+          "reference": 147.38,
+          "estimate": 156.66824863014577,
+          "cents": 105.80647804586165
+        },
+        {
+          "time": 7.778684807256236,
+          "reference": 182.847,
+          "estimate": 194.67428853956667,
+          "cents": 108.5104769173856
+        },
+        {
+          "time": 9.328616780045351,
+          "reference": 206.275,
+          "estimate": 219.9070965325054,
+          "cents": 110.79021681845767
+        }
+      ]
+    },
+    {
+      "id": "vocadito_20",
+      "audio": "Audio/vocadito_20.wav",
+      "annotation": "Annotations/F0/vocadito_20_f0.csv",
+      "audioSha256": "feb3c31e77b7779bdfb302c7819644535804f22a90a8e21f63c393d667ec5181",
+      "annotationSha256": "e09cff1461c2d3ebedcd46093297c44bb00bc705d630d11a6b6e0b8323a047d9",
+      "durationSeconds": 8.713492063492064,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 349,
+      "analysisMilliseconds": 39.707458000000315,
+      "counts": {
+        "frames": 1502,
+        "referenceVoiced": 938,
+        "referenceUnvoiced": 564,
+        "trueVoiced": 878,
+        "falseAlarm": 56,
+        "rawCorrect": 777,
+        "chromaCorrect": 781,
+        "octaveHigh": 4,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 82.83582089552239,
+        "rawChromaAccuracy50c": 83.26226012793177,
+        "voicingRecall": 93.60341151385929,
+        "voicingFalseAlarm": 9.929078014184398,
+        "octaveErrorRateOfVoicedReference": 0.42643923240938164,
+        "octaveErrorRateOfDetectedVoiced": 0.45558086560364464
+      },
+      "medianAbsoluteCentsDetected": 13.573383396567166,
+      "grossErrorExamples": [
+        {
+          "time": 1.1319727891156464,
+          "reference": 178.505,
+          "estimate": 189.1832581423368,
+          "cents": 100.5839244772161
+        },
+        {
+          "time": 1.3351473922902495,
+          "reference": 203.061,
+          "estimate": 176.4259343123985,
+          "cents": -243.4206375430367
+        },
+        {
+          "time": 1.811156462585034,
+          "reference": 283.128,
+          "estimate": 263.4948445048949,
+          "cents": -124.41563675853779
+        },
+        {
+          "time": 2.200090702947846,
+          "reference": 216.419,
+          "estimate": 229.91582872648476,
+          "cents": 104.73435615331294
+        },
+        {
+          "time": 3.244988662131519,
+          "reference": 229.124,
+          "estimate": 214.73801096249863,
+          "cents": -112.2611972425218
+        },
+        {
+          "time": 4.347936507936508,
+          "reference": 219.653,
+          "estimate": 232.72833625893668,
+          "cents": 100.10481074411821
+        }
+      ]
+    },
+    {
+      "id": "vocadito_21",
+      "audio": "Audio/vocadito_21.wav",
+      "annotation": "Annotations/F0/vocadito_21_f0.csv",
+      "audioSha256": "d9d3c20794fd3b42e8f7693b91e8194844a6b80b3932ae4fc06d8e0e277687a7",
+      "annotationSha256": "683af807f48f0a04718e02a45128fc2ee848307cd9b7eb0ac06de2218645791c",
+      "durationSeconds": 22,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 880,
+      "analysisMilliseconds": 107.28245800000013,
+      "counts": {
+        "frames": 3790,
+        "referenceVoiced": 2972,
+        "referenceUnvoiced": 818,
+        "trueVoiced": 2530,
+        "falseAlarm": 175,
+        "rawCorrect": 2057,
+        "chromaCorrect": 2133,
+        "octaveHigh": 71,
+        "octaveLow": 5,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 2
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 69.21265141318977,
+        "rawChromaAccuracy50c": 71.76985195154778,
+        "voicingRecall": 85.1278600269179,
+        "voicingFalseAlarm": 21.39364303178484,
+        "octaveErrorRateOfVoicedReference": 2.557200538358008,
+        "octaveErrorRateOfDetectedVoiced": 3.0039525691699605
+      },
+      "medianAbsoluteCentsDetected": 13.316990943711275,
+      "grossErrorExamples": [
+        {
+          "time": 2.548390022675737,
+          "reference": 135.574,
+          "estimate": 127.46244824065408,
+          "cents": -106.80990269990203
+        },
+        {
+          "time": 2.9082993197278912,
+          "reference": 139.654,
+          "estimate": 148.57661148125229,
+          "cents": 107.22015899901294
+        },
+        {
+          "time": 4.66140589569161,
+          "reference": 97.3684,
+          "estimate": 91.89695598525326,
+          "cents": -100.12387317241756
+        },
+        {
+          "time": 5.508934240362812,
+          "reference": 146.539,
+          "estimate": 136.74354604955101,
+          "cents": -119.7743191667273
+        },
+        {
+          "time": 7.859954648526077,
+          "reference": 225.725,
+          "estimate": 210.33055045443373,
+          "cents": -122.28935474381701
+        },
+        {
+          "time": 8.126984126984127,
+          "reference": 254.395,
+          "estimate": 239.15122038313635,
+          "cents": -106.97659452706642
+        }
+      ]
+    },
+    {
+      "id": "vocadito_22",
+      "audio": "Audio/vocadito_22.wav",
+      "annotation": "Annotations/F0/vocadito_22_f0.csv",
+      "audioSha256": "6629d0ecd7acddd1ce2877d00bc7ef80dc01fdd20f3225b9c2ed907da12f989e",
+      "annotationSha256": "f6fbca9e262fe338f3ca8f99be5d08d8a4080a5b09337f4ba7f8366b0b159464",
+      "durationSeconds": 18.333492063492063,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 734,
+      "analysisMilliseconds": 64.58495900000025,
+      "counts": {
+        "frames": 3159,
+        "referenceVoiced": 1800,
+        "referenceUnvoiced": 1359,
+        "trueVoiced": 1613,
+        "falseAlarm": 74,
+        "rawCorrect": 1539,
+        "chromaCorrect": 1539,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 9
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 85.5,
+        "rawChromaAccuracy50c": 85.5,
+        "voicingRecall": 89.61111111111111,
+        "voicingFalseAlarm": 5.445180279617365,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 7.784746007133968,
+      "grossErrorExamples": [
+        {
+          "time": 1.509297052154195,
+          "reference": 209.18,
+          "estimate": 222.6907657343507,
+          "cents": 108.35617852133375
+        },
+        {
+          "time": 6.3854875283446715,
+          "reference": 281.658,
+          "estimate": 264.8532048606277,
+          "cents": -106.50177993326918
+        },
+        {
+          "time": 15.232290249433106,
+          "reference": 238.441,
+          "estimate": 254.01837320835347,
+          "cents": 109.56062672951509
+        },
+        {
+          "time": 16.07981859410431,
+          "reference": 263.316,
+          "estimate": 243.15085028347858,
+          "cents": -137.93226076459456
+        }
+      ]
+    },
+    {
+      "id": "vocadito_23",
+      "audio": "Audio/vocadito_23.wav",
+      "annotation": "Annotations/F0/vocadito_23_f0.csv",
+      "audioSha256": "3cade4af7d869e3175e3684075782a23f6af936942a8684bfbb4fdbe3a4f10e7",
+      "annotationSha256": "1bbb29db223ac10d5bf7219145deefe4336c3f46692bf8f5d3963077543f6930",
+      "durationSeconds": 18.037823129251702,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 722,
+      "analysisMilliseconds": 69.80299999999988,
+      "counts": {
+        "frames": 3108,
+        "referenceVoiced": 1966,
+        "referenceUnvoiced": 1142,
+        "trueVoiced": 1656,
+        "falseAlarm": 40,
+        "rawCorrect": 1513,
+        "chromaCorrect": 1552,
+        "octaveHigh": 39,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 36
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 76.95829094608342,
+        "rawChromaAccuracy50c": 78.94201424211597,
+        "voicingRecall": 84.23194303153612,
+        "voicingFalseAlarm": 3.502626970227671,
+        "octaveErrorRateOfVoicedReference": 1.9837232960325535,
+        "octaveErrorRateOfDetectedVoiced": 2.355072463768116
+      },
+      "medianAbsoluteCentsDetected": 10.065876464019848,
+      "grossErrorExamples": [
+        {
+          "time": 2.1072108843537416,
+          "reference": 133.664,
+          "estimate": 123.99383228084226,
+          "cents": -130.01111288961297
+        },
+        {
+          "time": 3.384308390022676,
+          "reference": 121.717,
+          "estimate": 129.83690423425293,
+          "cents": 111.80379084385419
+        },
+        {
+          "time": 3.982222222222222,
+          "reference": 135.546,
+          "estimate": 122.26630795161086,
+          "cents": -178.50676074501425
+        },
+        {
+          "time": 4.684625850340137,
+          "reference": 104.233,
+          "estimate": 111.12223666112618,
+          "cents": 110.80252599931642
+        },
+        {
+          "time": 7.354920634920635,
+          "reference": 151.869,
+          "estimate": 142.21887343488294,
+          "cents": -113.65737467064388
+        },
+        {
+          "time": 9.264761904761905,
+          "reference": 99.5208,
+          "estimate": 105.86922786195335,
+          "cents": 107.05599143178127
+        }
+      ]
+    },
+    {
+      "id": "vocadito_24",
+      "audio": "Audio/vocadito_24.wav",
+      "annotation": "Annotations/F0/vocadito_24_f0.csv",
+      "audioSha256": "22fb2df57dc7b68987cda67b30171c626a7818b9ab7db02185e8ea0a0a6db7ee",
+      "annotationSha256": "e0b877b9679fcf7ee5eae7e41c8b1fd44328f681d2c9f2e2008f76559e0f54d4",
+      "durationSeconds": 14.757823129251701,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 591,
+      "analysisMilliseconds": 66.16466700000046,
+      "counts": {
+        "frames": 2543,
+        "referenceVoiced": 1642,
+        "referenceUnvoiced": 901,
+        "trueVoiced": 1538,
+        "falseAlarm": 259,
+        "rawCorrect": 1438,
+        "chromaCorrect": 1476,
+        "octaveHigh": 34,
+        "octaveLow": 4,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 7
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 87.57612667478685,
+        "rawChromaAccuracy50c": 89.89037758830695,
+        "voicingRecall": 93.66626065773447,
+        "voicingFalseAlarm": 28.745837957824637,
+        "octaveErrorRateOfVoicedReference": 2.3142509135200973,
+        "octaveErrorRateOfDetectedVoiced": 2.4707412223667102
+      },
+      "medianAbsoluteCentsDetected": 5.897846977651993,
+      "grossErrorExamples": [
+        {
+          "time": 0.4876190476190476,
+          "reference": 200.34,
+          "estimate": 402.5780961987076,
+          "cents": 1208.1818157808548
+        },
+        {
+          "time": 3.6048979591836736,
+          "reference": 210.334,
+          "estimate": 198.515481773217,
+          "cents": -100.11666351354701
+        },
+        {
+          "time": 5.38702947845805,
+          "reference": 251.754,
+          "estimate": 236.8877062997145,
+          "cents": -105.37364563691648
+        },
+        {
+          "time": 6.286802721088436,
+          "reference": 278.724,
+          "estimate": 295.92853240462307,
+          "cents": 103.69388330388955
+        },
+        {
+          "time": 9.740770975056689,
+          "reference": 215.001,
+          "estimate": 424.63694860556416,
+          "cents": 1178.2638465616665
+        },
+        {
+          "time": 10.141315192743765,
+          "reference": 213.314,
+          "estimate": 106.51413744085973,
+          "cents": -1202.3204695224495
+        }
+      ]
+    },
+    {
+      "id": "vocadito_25",
+      "audio": "Audio/vocadito_25.wav",
+      "annotation": "Annotations/F0/vocadito_25_f0.csv",
+      "audioSha256": "cf155e4fd681331d34f316e421803255c449acb0393fa55cd23079ed103b37af",
+      "annotationSha256": "bde7f5aca8cb7baacaed37d2e74178ba93b3c838280504dd488e47e2ab958e20",
+      "durationSeconds": 14.657823129251701,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 587,
+      "analysisMilliseconds": 59.40662499999962,
+      "counts": {
+        "frames": 2526,
+        "referenceVoiced": 1704,
+        "referenceUnvoiced": 822,
+        "trueVoiced": 1644,
+        "falseAlarm": 153,
+        "rawCorrect": 1538,
+        "chromaCorrect": 1544,
+        "octaveHigh": 0,
+        "octaveLow": 6,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 5
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 90.25821596244131,
+        "rawChromaAccuracy50c": 90.61032863849765,
+        "voicingRecall": 96.47887323943662,
+        "voicingFalseAlarm": 18.613138686131386,
+        "octaveErrorRateOfVoicedReference": 0.35211267605633806,
+        "octaveErrorRateOfDetectedVoiced": 0.36496350364963503
+      },
+      "medianAbsoluteCentsDetected": 8.965575950062641,
+      "grossErrorExamples": [
+        {
+          "time": 6.861496598639456,
+          "reference": 265.107,
+          "estimate": 292.60032038077804,
+          "cents": 170.82790187289524
+        },
+        {
+          "time": 7.360725623582766,
+          "reference": 237.907,
+          "estimate": 254.63161724579206,
+          "cents": 117.6166158858657
+        },
+        {
+          "time": 9.734965986394558,
+          "reference": 237.873,
+          "estimate": 256.8153380863448,
+          "cents": 132.64781067201682
+        },
+        {
+          "time": 10.884353741496598,
+          "reference": 214.411,
+          "estimate": 227.79946647493,
+          "cents": 104.86253444879303
+        },
+        {
+          "time": 11.482267573696145,
+          "reference": 194.785,
+          "estimate": 183.73899909823777,
+          "cents": -101.0696493558003
+        },
+        {
+          "time": 11.981496598639456,
+          "reference": 188.539,
+          "estimate": 200.73904778631533,
+          "cents": 108.5499551769542
+        }
+      ]
+    },
+    {
+      "id": "vocadito_26",
+      "audio": "Audio/vocadito_26.wav",
+      "annotation": "Annotations/F0/vocadito_26_f0.csv",
+      "audioSha256": "27fcfb7c6150b412be3f22199202dfc2aab46e59e16cddd675b71c8325b3f66d",
+      "annotationSha256": "4ab0aef2a982eb729e24bca42941e5e453376c1aa5c802f0136c07ea45397d6b",
+      "durationSeconds": 12.8578231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 515,
+      "analysisMilliseconds": 55.88879199999974,
+      "counts": {
+        "frames": 2215,
+        "referenceVoiced": 1465,
+        "referenceUnvoiced": 750,
+        "trueVoiced": 1248,
+        "falseAlarm": 152,
+        "rawCorrect": 1015,
+        "chromaCorrect": 1015,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 69.28327645051195,
+        "rawChromaAccuracy50c": 69.28327645051195,
+        "voicingRecall": 85.18771331058021,
+        "voicingFalseAlarm": 20.266666666666666,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 17.207863504032048,
+      "grossErrorExamples": [
+        {
+          "time": 1.0100680272108844,
+          "reference": 109.494,
+          "estimate": 103.20404137335429,
+          "cents": -102.42281931242786
+        },
+        {
+          "time": 1.294512471655329,
+          "reference": 124.211,
+          "estimate": 132.63399709051882,
+          "cents": 113.58921044084356
+        },
+        {
+          "time": 1.509297052154195,
+          "reference": 151.738,
+          "estimate": 143.1761327401711,
+          "cents": -100.54969193011931
+        },
+        {
+          "time": 1.811156462585034,
+          "reference": 138.591,
+          "estimate": 130.626042576878,
+          "cents": -102.46922518996328
+        },
+        {
+          "time": 3.4365532879818597,
+          "reference": 85.0625,
+          "estimate": 79.39002829038655,
+          "cents": -119.47853546255055
+        },
+        {
+          "time": 5.305759637188209,
+          "reference": 124.833,
+          "estimate": 132.52527065648044,
+          "cents": 103.52174567587778
+        }
+      ]
+    },
+    {
+      "id": "vocadito_27",
+      "audio": "Audio/vocadito_27.wav",
+      "annotation": "Annotations/F0/vocadito_27_f0.csv",
+      "audioSha256": "6300e1fc5981ea458074a24a1c32a1011a095df4162fbc8911d6b0240d182419",
+      "annotationSha256": "71d3640f13e4360837c9e77dfa611fcd599dd76c47aeb454cc51699c6261fc01",
+      "durationSeconds": 14.0178231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 561,
+      "analysisMilliseconds": 58.09020800000053,
+      "counts": {
+        "frames": 2415,
+        "referenceVoiced": 1455,
+        "referenceUnvoiced": 960,
+        "trueVoiced": 1354,
+        "falseAlarm": 103,
+        "rawCorrect": 1286,
+        "chromaCorrect": 1286,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 88.38487972508591,
+        "rawChromaAccuracy50c": 88.38487972508591,
+        "voicingRecall": 93.05841924398625,
+        "voicingFalseAlarm": 10.729166666666666,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 7.1367992931652955,
+      "grossErrorExamples": [
+        {
+          "time": 5.328979591836735,
+          "reference": 188.4,
+          "estimate": 203.37362224804937,
+          "cents": 132.4003289537755
+        },
+        {
+          "time": 10.686984126984127,
+          "reference": 216.828,
+          "estimate": 229.7966415925733,
+          "cents": 100.56797160495357
+        },
+        {
+          "time": 12.527165532879819,
+          "reference": 163.065,
+          "estimate": 153.69515547017795,
+          "cents": -102.45055940192982
+        },
+        {
+          "time": 12.805804988662132,
+          "reference": 165.386,
+          "estimate": 153.81308041731833,
+          "cents": -125.59070177971799
+        }
+      ]
+    },
+    {
+      "id": "vocadito_28",
+      "audio": "Audio/vocadito_28.wav",
+      "annotation": "Annotations/F0/vocadito_28_f0.csv",
+      "audioSha256": "f50830862faff98314bb7b28de452754ef2d939e187a6d89e5fb1ad56749aeb6",
+      "annotationSha256": "9bc2f3a1ececf51f4cde93010cfa75d2362ce971b27e91c2ca04d9161abbe346",
+      "durationSeconds": 12.8978231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 516,
+      "analysisMilliseconds": 52.099584000000505,
+      "counts": {
+        "frames": 2222,
+        "referenceVoiced": 1514,
+        "referenceUnvoiced": 708,
+        "trueVoiced": 1390,
+        "falseAlarm": 50,
+        "rawCorrect": 1262,
+        "chromaCorrect": 1262,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 6
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 83.35535006605019,
+        "rawChromaAccuracy50c": 83.35535006605019,
+        "voicingRecall": 91.8097754293263,
+        "voicingFalseAlarm": 7.062146892655368,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 12.772588027186789,
+      "grossErrorExamples": [
+        {
+          "time": 1.5615419501133787,
+          "reference": 90.642,
+          "estimate": 85.54740292406468,
+          "cents": -100.14676410243837
+        },
+        {
+          "time": 5.160634920634921,
+          "reference": 118.403,
+          "estimate": 125.59593888705788,
+          "cents": 102.1010166329114
+        },
+        {
+          "time": 7.877369614512472,
+          "reference": 139.674,
+          "estimate": 130.68531970755618,
+          "cents": -115.15968425131285
+        },
+        {
+          "time": 8.156009070294784,
+          "reference": 143.751,
+          "estimate": 152.8838577264773,
+          "cents": 106.6369143913683
+        },
+        {
+          "time": 8.562358276643991,
+          "reference": 117.465,
+          "estimate": 124.72912109200152,
+          "cents": 103.88086012366945
+        },
+        {
+          "time": 11.430022675736963,
+          "reference": 92.0364,
+          "estimate": 97.89345600636396,
+          "cents": 106.80944146865195
+        }
+      ]
+    },
+    {
+      "id": "vocadito_29",
+      "audio": "Audio/vocadito_29.wav",
+      "annotation": "Annotations/F0/vocadito_29_f0.csv",
+      "audioSha256": "46a831ed09f60728c6bfb051e27582d2d47021805ea8c4500bf4b2d6396a71cb",
+      "annotationSha256": "f6c3f413e03265fdfbeb9b370ee4d2cabb1edfb0eec4eba7e41f6faaaf1b73fc",
+      "durationSeconds": 14.893492063492063,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 596,
+      "analysisMilliseconds": 71.50866700000006,
+      "counts": {
+        "frames": 2566,
+        "referenceVoiced": 1820,
+        "referenceUnvoiced": 746,
+        "trueVoiced": 1711,
+        "falseAlarm": 146,
+        "rawCorrect": 1671,
+        "chromaCorrect": 1671,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 91.8131868131868,
+        "rawChromaAccuracy50c": 91.8131868131868,
+        "voicingRecall": 94.01098901098901,
+        "voicingFalseAlarm": 19.571045576407506,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 4.8942945959636495,
+      "grossErrorExamples": [
+        {
+          "time": 0.6675736961451247,
+          "reference": 193.198,
+          "estimate": 205.6595347346633,
+          "cents": 108.21335985791838
+        },
+        {
+          "time": 6.710566893424036,
+          "reference": 226.059,
+          "estimate": 242.27161600972772,
+          "cents": 119.91124267722876
+        },
+        {
+          "time": 11.38358276643991,
+          "reference": 229.66,
+          "estimate": 102.07976028079737,
+          "cents": -1403.7633088759867
+        }
+      ]
+    },
+    {
+      "id": "vocadito_30",
+      "audio": "Audio/vocadito_30.wav",
+      "annotation": "Annotations/F0/vocadito_30_f0.csv",
+      "audioSha256": "ce2128d9bfcd434a9c1507d1f2fcd504677e0b1e0fb5fe8bbe07406158df144f",
+      "annotationSha256": "6f584e8d0aaf514efbb7986a049c01b0887491bf40bc43ec03a566c3a24f0924",
+      "durationSeconds": 13.0178231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 521,
+      "analysisMilliseconds": 54.22966600000018,
+      "counts": {
+        "frames": 2243,
+        "referenceVoiced": 1222,
+        "referenceUnvoiced": 1021,
+        "trueVoiced": 1018,
+        "falseAlarm": 205,
+        "rawCorrect": 844,
+        "chromaCorrect": 895,
+        "octaveHigh": 46,
+        "octaveLow": 5,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 69.0671031096563,
+        "rawChromaAccuracy50c": 73.240589198036,
+        "voicingRecall": 83.30605564648118,
+        "voicingFalseAlarm": 20.078354554358473,
+        "octaveErrorRateOfVoicedReference": 4.173486088379706,
+        "octaveErrorRateOfDetectedVoiced": 5.009823182711198
+      },
+      "medianAbsoluteCentsDetected": 14.72646046433329,
+      "grossErrorExamples": [
+        {
+          "time": 0.8649433106575964,
+          "reference": 175.109,
+          "estimate": 347.3289400136204,
+          "cents": 1185.659265832804
+        },
+        {
+          "time": 1.8053514739229026,
+          "reference": 200.712,
+          "estimate": 215.00783005430497,
+          "cents": 119.11479149723269
+        },
+        {
+          "time": 2.583219954648526,
+          "reference": 200.978,
+          "estimate": 213.64045483864376,
+          "cents": 105.7767299867612
+        },
+        {
+          "time": 3.28562358276644,
+          "reference": 245.893,
+          "estimate": 231.64788369820857,
+          "cents": -103.31659581609746
+        },
+        {
+          "time": 3.74421768707483,
+          "reference": 237.888,
+          "estimate": 252.0887647482694,
+          "cents": 100.37918670959085
+        },
+        {
+          "time": 6.675736961451247,
+          "reference": 236.957,
+          "estimate": 213.63776780719712,
+          "cents": -179.35027817601133
+        }
+      ]
+    },
+    {
+      "id": "vocadito_31",
+      "audio": "Audio/vocadito_31.wav",
+      "annotation": "Annotations/F0/vocadito_31_f0.csv",
+      "audioSha256": "c3e68dddd4d6a6d34d135042f76ed74cf4b85208c2483a2d4a331d717af99356",
+      "annotationSha256": "33b5787525e86b1ef7851d8f4df257ece0c709315dd3ae18b83e7e05a42f3934",
+      "durationSeconds": 14.033492063492064,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 562,
+      "analysisMilliseconds": 66.69974999999977,
+      "counts": {
+        "frames": 2418,
+        "referenceVoiced": 1404,
+        "referenceUnvoiced": 1014,
+        "trueVoiced": 1243,
+        "falseAlarm": 151,
+        "rawCorrect": 1163,
+        "chromaCorrect": 1163,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 82.83475783475784,
+        "rawChromaAccuracy50c": 82.83475783475784,
+        "voicingRecall": 88.53276353276354,
+        "voicingFalseAlarm": 14.891518737672586,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 8.514157475369686,
+      "grossErrorExamples": [
+        {
+          "time": 4.957460317460318,
+          "reference": 207.35,
+          "estimate": 192.26477684840432,
+          "cents": -130.76827670954006
+        },
+        {
+          "time": 7.912199546485261,
+          "reference": 296.19,
+          "estimate": 279.1336972227323,
+          "cents": -102.67996188757341
+        },
+        {
+          "time": 9.380861678004536,
+          "reference": 226.688,
+          "estimate": 210.64664444479823,
+          "cents": -127.05970565989045
+        },
+        {
+          "time": 10.483809523809525,
+          "reference": 219.411,
+          "estimate": 187.7247049512071,
+          "cents": -270.02079803775575
+        },
+        {
+          "time": 11.609977324263038,
+          "reference": 197.549,
+          "estimate": 183.10746895711068,
+          "cents": -131.42388416103915
+        },
+        {
+          "time": 12.382040816326532,
+          "reference": 244.021,
+          "estimate": 259.1632145334324,
+          "cents": 104.22677842732269
+        }
+      ]
+    },
+    {
+      "id": "vocadito_32",
+      "audio": "Audio/vocadito_32.wav",
+      "annotation": "Annotations/F0/vocadito_32_f0.csv",
+      "audioSha256": "1776573e0a80e0618258501c1fa877a75c36c3368ab24014aaebb522f92768b7",
+      "annotationSha256": "63ea4ef4788a54dc3ec9e3abb3a1b68bd5f47392d2d3359f36e5b131dc42f2fe",
+      "durationSeconds": 25.033492063492062,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1002,
+      "analysisMilliseconds": 107.40554200000042,
+      "counts": {
+        "frames": 4313,
+        "referenceVoiced": 2654,
+        "referenceUnvoiced": 1659,
+        "trueVoiced": 2541,
+        "falseAlarm": 350,
+        "rawCorrect": 2443,
+        "chromaCorrect": 2443,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 1
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 92.04973624717408,
+        "rawChromaAccuracy50c": 92.04973624717408,
+        "voicingRecall": 95.74227581009796,
+        "voicingFalseAlarm": 21.09704641350211,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 8.2702775055167,
+      "grossErrorExamples": [
+        {
+          "time": 1.2596825396825397,
+          "reference": 301.163,
+          "estimate": 283.3719474599945,
+          "cents": -105.41710869923232
+        },
+        {
+          "time": 3.1114739229024946,
+          "reference": 276.535,
+          "estimate": 295.2171277647366,
+          "cents": 113.17720425887755
+        },
+        {
+          "time": 12.707120181405896,
+          "reference": 235.731,
+          "estimate": 251.16819757150688,
+          "cents": 109.8147728236446
+        },
+        {
+          "time": 15.656054421768708,
+          "reference": 193.01,
+          "estimate": 169.75797150729872,
+          "cents": -222.23552922582434
+        },
+        {
+          "time": 21.983492063492065,
+          "reference": 205.186,
+          "estimate": 179.76409802339288,
+          "cents": -228.99285533780633
+        }
+      ]
+    },
+    {
+      "id": "vocadito_33",
+      "audio": "Audio/vocadito_33.wav",
+      "annotation": "Annotations/F0/vocadito_33_f0.csv",
+      "audioSha256": "896ae8828bfdc7eefc46a4781c328b979f519fea310c04c32cf5859c54ba4c7a",
+      "annotationSha256": "cf553bfb06c17445e36d24c9a1c13c6501d0ac0687aebc19c0e242b45d809dd4",
+      "durationSeconds": 30,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1200,
+      "analysisMilliseconds": 130.80000000000018,
+      "counts": {
+        "frames": 5168,
+        "referenceVoiced": 3373,
+        "referenceUnvoiced": 1795,
+        "trueVoiced": 2991,
+        "falseAlarm": 233,
+        "rawCorrect": 2608,
+        "chromaCorrect": 2684,
+        "octaveHigh": 38,
+        "octaveLow": 38,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 77.31989327008598,
+        "rawChromaAccuracy50c": 79.57308034390749,
+        "voicingRecall": 88.67477023421286,
+        "voicingFalseAlarm": 12.98050139275766,
+        "octaveErrorRateOfVoicedReference": 2.2531870738215236,
+        "octaveErrorRateOfDetectedVoiced": 2.5409562019391507
+      },
+      "medianAbsoluteCentsDetected": 14.436831447686357,
+      "grossErrorExamples": [
+        {
+          "time": 0.7314285714285714,
+          "reference": 243.383,
+          "estimate": 227.47695778377798,
+          "cents": -117.0095829634864
+        },
+        {
+          "time": 1.9562811791383221,
+          "reference": 187.889,
+          "estimate": 175.693464734005,
+          "cents": -116.18409348643938
+        },
+        {
+          "time": 3.076643990929705,
+          "reference": 207.302,
+          "estimate": 223.80516518840793,
+          "cents": 132.611156755323
+        },
+        {
+          "time": 3.651337868480726,
+          "reference": 239.136,
+          "estimate": 223.83731419458246,
+          "cents": -114.45693070137678
+        },
+        {
+          "time": 4.133151927437642,
+          "reference": 246.431,
+          "estimate": 228.30877905097103,
+          "cents": -132.23689992730425
+        },
+        {
+          "time": 6.240362811791384,
+          "reference": 174.13,
+          "estimate": 87.22269385781087,
+          "cents": -1196.8671907416278
+        }
+      ]
+    },
+    {
+      "id": "vocadito_34",
+      "audio": "Audio/vocadito_34.wav",
+      "annotation": "Annotations/F0/vocadito_34_f0.csv",
+      "audioSha256": "60cefc716230c7783889b1b46f8dcfba48669cf5be6cddb522c04e810c8d38d8",
+      "annotationSha256": "74e80a72860ff758162a015a213026939723ec4190635b17c9261d6b079d2740",
+      "durationSeconds": 24.853492063492062,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 995,
+      "analysisMilliseconds": 136.62516700000015,
+      "counts": {
+        "frames": 4282,
+        "referenceVoiced": 3138,
+        "referenceUnvoiced": 1144,
+        "trueVoiced": 2646,
+        "falseAlarm": 107,
+        "rawCorrect": 2250,
+        "chromaCorrect": 2476,
+        "octaveHigh": 9,
+        "octaveLow": 217,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 71.70172084130019,
+        "rawChromaAccuracy50c": 78.90376035691523,
+        "voicingRecall": 84.32122370936902,
+        "voicingFalseAlarm": 9.353146853146853,
+        "octaveErrorRateOfVoicedReference": 7.202039515615041,
+        "octaveErrorRateOfDetectedVoiced": 8.54119425547997
+      },
+      "medianAbsoluteCentsDetected": 10.658100541690647,
+      "grossErrorExamples": [
+        {
+          "time": 1.2887074829931973,
+          "reference": 265.669,
+          "estimate": 132.35144172859708,
+          "cents": -1206.3071808910088
+        },
+        {
+          "time": 1.4918820861678004,
+          "reference": 265.832,
+          "estimate": 529.5358428409526,
+          "cents": 1193.05626909104
+        },
+        {
+          "time": 1.6950566893424037,
+          "reference": 266.833,
+          "estimate": 87.7587733165478,
+          "cents": -1925.1862015568863
+        },
+        {
+          "time": 2.1420408163265305,
+          "reference": 184.254,
+          "estimate": 93.4806233931169,
+          "cents": -1174.7480150550393
+        },
+        {
+          "time": 2.589024943310658,
+          "reference": 193.113,
+          "estimate": 96.27860474123835,
+          "cents": -1204.989776812013
+        },
+        {
+          "time": 2.8676643990929707,
+          "reference": 159.797,
+          "estimate": 79.17943572506906,
+          "cents": -1215.65115902634
+        }
+      ]
+    },
+    {
+      "id": "vocadito_35",
+      "audio": "Audio/vocadito_35.wav",
+      "annotation": "Annotations/F0/vocadito_35_f0.csv",
+      "audioSha256": "85c1c4268527cc53240e9f4f0d557d92f3bf9856d6d42ca50e80c7cbb02bea72",
+      "annotationSha256": "a2327fff128c5355ea4e6e9ca6f6fca04a8d04f5b4085cf082bd86952cebc1dc",
+      "durationSeconds": 13.8,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 552,
+      "analysisMilliseconds": 71.93120900000031,
+      "counts": {
+        "frames": 2378,
+        "referenceVoiced": 1654,
+        "referenceUnvoiced": 724,
+        "trueVoiced": 1469,
+        "falseAlarm": 46,
+        "rawCorrect": 1388,
+        "chromaCorrect": 1388,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 83.91777509068923,
+        "rawChromaAccuracy50c": 83.91777509068923,
+        "voicingRecall": 88.81499395405078,
+        "voicingFalseAlarm": 6.353591160220995,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 10.661916384660776,
+      "grossErrorExamples": [
+        {
+          "time": 1.9040362811791383,
+          "reference": 109.892,
+          "estimate": 119.417784966931,
+          "cents": 143.91762045589772
+        },
+        {
+          "time": 2.536780045351474,
+          "reference": 120.999,
+          "estimate": 112.119363535764,
+          "cents": -131.95159745210526
+        },
+        {
+          "time": 3.082448979591837,
+          "reference": 167.495,
+          "estimate": 154.44242098373553,
+          "cents": -140.4587456001516
+        },
+        {
+          "time": 3.900952380952381,
+          "reference": 115.124,
+          "estimate": 122.18698461142483,
+          "cents": 103.08239086827598
+        },
+        {
+          "time": 5.880453514739229,
+          "reference": 127.201,
+          "estimate": 119.47766941673953,
+          "cents": -108.4428135833596
+        },
+        {
+          "time": 6.884716553287982,
+          "reference": 115.383,
+          "estimate": 124.8549300613493,
+          "cents": 136.5865314109558
+        }
+      ]
+    },
+    {
+      "id": "vocadito_36",
+      "audio": "Audio/vocadito_36.wav",
+      "annotation": "Annotations/F0/vocadito_36_f0.csv",
+      "audioSha256": "2e4eacabc71019752feb17da9e1b0228b9b5ba0ae97ec41107f80dac65750dbb",
+      "annotationSha256": "b9e8b5721a596f4f6272337072b976e0d8d92f9b5501f876a8f5afb6f46e8296",
+      "durationSeconds": 23.2778231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 932,
+      "analysisMilliseconds": 122.19804199999999,
+      "counts": {
+        "frames": 4010,
+        "referenceVoiced": 2612,
+        "referenceUnvoiced": 1398,
+        "trueVoiced": 2280,
+        "falseAlarm": 160,
+        "rawCorrect": 2198,
+        "chromaCorrect": 2198,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 84.15007656967842,
+        "rawChromaAccuracy50c": 84.15007656967842,
+        "voicingRecall": 87.28943338437979,
+        "voicingFalseAlarm": 11.444921316165951,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 9.41573850143917,
+      "grossErrorExamples": [
+        {
+          "time": 9.380861678004536,
+          "reference": 124.149,
+          "estimate": 115.7661632212108,
+          "cents": -121.0308058642673
+        },
+        {
+          "time": 10.710204081632654,
+          "reference": 103.751,
+          "estimate": 111.1485451041856,
+          "cents": 119.23658667005878
+        },
+        {
+          "time": 16.579047619047618,
+          "reference": 163.663,
+          "estimate": 153.70058003794838,
+          "cents": -108.72671145570592
+        },
+        {
+          "time": 20.607709750566894,
+          "reference": 122.302,
+          "estimate": 112.66783935763786,
+          "cents": -142.04668127610594
+        }
+      ]
+    },
+    {
+      "id": "vocadito_37",
+      "audio": "Audio/vocadito_37.wav",
+      "annotation": "Annotations/F0/vocadito_37_f0.csv",
+      "audioSha256": "53cb202ddabf1cb7591be49da9160f508cb81c6078c50c7e41a13efe109a0622",
+      "annotationSha256": "9d28fa1df8baf180fd35f5049c4cdd7a675b0a2c81857fa7893a04a39cbdfeb7",
+      "durationSeconds": 38.736009070294784,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1550,
+      "analysisMilliseconds": 170.90829200000007,
+      "counts": {
+        "frames": 6673,
+        "referenceVoiced": 5106,
+        "referenceUnvoiced": 1567,
+        "trueVoiced": 5040,
+        "falseAlarm": 109,
+        "rawCorrect": 4953,
+        "chromaCorrect": 4965,
+        "octaveHigh": 0,
+        "octaveLow": 12,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 97.00352526439482,
+        "rawChromaAccuracy50c": 97.2385428907168,
+        "voicingRecall": 98.70740305522914,
+        "voicingFalseAlarm": 6.955966815571155,
+        "octaveErrorRateOfVoicedReference": 0.23501762632197415,
+        "octaveErrorRateOfDetectedVoiced": 0.2380952380952381
+      },
+      "medianAbsoluteCentsDetected": 4.611035863149339,
+      "grossErrorExamples": [
+        {
+          "time": 6.931156462585034,
+          "reference": 216.948,
+          "estimate": 230.5606192662656,
+          "cents": 105.35619514392816
+        },
+        {
+          "time": 9.485351473922902,
+          "reference": 334.426,
+          "estimate": 311.4321317106161,
+          "cents": -123.32305626505821
+        },
+        {
+          "time": 11.284897959183674,
+          "reference": 296.61,
+          "estimate": 315.0163794387351,
+          "cents": 104.23152739282514
+        },
+        {
+          "time": 13.606893424036281,
+          "reference": 297.5,
+          "estimate": 279.3518810310939,
+          "cents": -108.96736035643232
+        },
+        {
+          "time": 22.66267573696145,
+          "reference": 281.395,
+          "estimate": 138.74996939354284,
+          "cents": -1224.1310890603647
+        },
+        {
+          "time": 23.83528344671202,
+          "reference": 340.043,
+          "estimate": 313.6776130280283,
+          "cents": -139.72154962749443
+        }
+      ]
+    },
+    {
+      "id": "vocadito_38",
+      "audio": "Audio/vocadito_38.wav",
+      "annotation": "Annotations/F0/vocadito_38_f0.csv",
+      "audioSha256": "2113abf18ddfb0e789021b8e2a2e42743b80d82c51aaca5fe9d228636883a239",
+      "annotationSha256": "59d2f8a9c8772e76021eeb61d69bee7f368f653ea323e7f6a4117cdd527463b0",
+      "durationSeconds": 27.84,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1114,
+      "analysisMilliseconds": 122.89300000000003,
+      "counts": {
+        "frames": 4796,
+        "referenceVoiced": 2463,
+        "referenceUnvoiced": 2333,
+        "trueVoiced": 2235,
+        "falseAlarm": 210,
+        "rawCorrect": 2116,
+        "chromaCorrect": 2116,
+        "octaveHigh": 0,
+        "octaveLow": 0,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 85.91149005278116,
+        "rawChromaAccuracy50c": 85.91149005278116,
+        "voicingRecall": 90.74299634591961,
+        "voicingFalseAlarm": 9.001285897985428,
+        "octaveErrorRateOfVoicedReference": 0,
+        "octaveErrorRateOfDetectedVoiced": 0
+      },
+      "medianAbsoluteCentsDetected": 10.657500720220472,
+      "grossErrorExamples": [
+        {
+          "time": 1.7298866213151929,
+          "reference": 324.426,
+          "estimate": 301.37583760434796,
+          "cents": -127.59082622868456
+        },
+        {
+          "time": 2.7573696145124718,
+          "reference": 194.014,
+          "estimate": 181.88505764595604,
+          "cents": -111.76048097751512
+        },
+        {
+          "time": 6.931156462585034,
+          "reference": 283.618,
+          "estimate": 266.1778827334427,
+          "cents": -109.87007678376247
+        },
+        {
+          "time": 8.550748299319729,
+          "reference": 266.366,
+          "estimate": 282.31709690502043,
+          "cents": 100.68786841937639
+        },
+        {
+          "time": 11.755102040816327,
+          "reference": 262.08,
+          "estimate": 279.1360893075917,
+          "cents": 109.15367927150385
+        },
+        {
+          "time": 19.348027210884354,
+          "reference": 269.623,
+          "estimate": 246.55422447651569,
+          "cents": -154.84631708295174
+        }
+      ]
+    },
+    {
+      "id": "vocadito_39",
+      "audio": "Audio/vocadito_39.wav",
+      "annotation": "Annotations/F0/vocadito_39_f0.csv",
+      "audioSha256": "23badef22642b2e00b676cf3b998d2f2d2d1ee9949888dcd6f038b0b6621b9db",
+      "annotationSha256": "96c7462f7edcd3af715647b609a24559c60efabf0d6a77d6273062479991a6a6",
+      "durationSeconds": 31.68,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 1268,
+      "analysisMilliseconds": 151.6814999999997,
+      "counts": {
+        "frames": 5458,
+        "referenceVoiced": 3951,
+        "referenceUnvoiced": 1507,
+        "trueVoiced": 3834,
+        "falseAlarm": 191,
+        "rawCorrect": 3653,
+        "chromaCorrect": 3654,
+        "octaveHigh": 0,
+        "octaveLow": 1,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 0
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 92.45760566945077,
+        "rawChromaAccuracy50c": 92.48291571753985,
+        "voicingRecall": 97.03872437357631,
+        "voicingFalseAlarm": 12.67418712674187,
+        "octaveErrorRateOfVoicedReference": 0.02531004808909137,
+        "octaveErrorRateOfDetectedVoiced": 0.02608242044861763
+      },
+      "medianAbsoluteCentsDetected": 8.671696651111402,
+      "grossErrorExamples": [
+        {
+          "time": 3.9357823129251703,
+          "reference": 292.444,
+          "estimate": 274.5480662231274,
+          "cents": -109.32196831519367
+        },
+        {
+          "time": 6.257777777777778,
+          "reference": 228.983,
+          "estimate": 242.74243020781844,
+          "cents": 101.02297435424295
+        },
+        {
+          "time": 8.533333333333333,
+          "reference": 277.544,
+          "estimate": 258.93430141811797,
+          "cents": -120.15649330309309
+        },
+        {
+          "time": 9.729160997732427,
+          "reference": 222.067,
+          "estimate": 235.5308604230363,
+          "cents": 101.90529893280201
+        },
+        {
+          "time": 12.382040816326532,
+          "reference": 279.327,
+          "estimate": 262.2052659561152,
+          "cents": -109.51004710227704
+        },
+        {
+          "time": 12.60843537414966,
+          "reference": 296.259,
+          "estimate": 274.8095462493388,
+          "cents": -130.11223335958633
+        }
+      ]
+    },
+    {
+      "id": "vocadito_40",
+      "audio": "Audio/vocadito_40.wav",
+      "annotation": "Annotations/F0/vocadito_40_f0.csv",
+      "audioSha256": "add1fc90659541163158bf025eeb0c09b7f738bdfcc812a835654ca1e8544b04",
+      "annotationSha256": "4ba1a1c1a8e8b068cee17affee35df893270900964b4974b8457fefc4ce93e8e",
+      "durationSeconds": 18.5778231292517,
+      "sourceRate": 44100,
+      "channelCount": 1,
+      "predictedFrames": 744,
+      "analysisMilliseconds": 73.27729199999976,
+      "counts": {
+        "frames": 3201,
+        "referenceVoiced": 2042,
+        "referenceUnvoiced": 1159,
+        "trueVoiced": 1934,
+        "falseAlarm": 140,
+        "rawCorrect": 1796,
+        "chromaCorrect": 1818,
+        "octaveHigh": 0,
+        "octaveLow": 22,
+        "outOfRangeReference": 0,
+        "lowRmsVoicingMiss": 3
+      },
+      "metrics": {
+        "rawPitchAccuracy50c": 87.95298726738491,
+        "rawChromaAccuracy50c": 89.03036238981392,
+        "voicingRecall": 94.71106758080313,
+        "voicingFalseAlarm": 12.079378774805868,
+        "octaveErrorRateOfVoicedReference": 1.0773751224289911,
+        "octaveErrorRateOfDetectedVoiced": 1.1375387797311272
+      },
+      "medianAbsoluteCentsDetected": 8.104736673209679,
+      "grossErrorExamples": [
+        {
+          "time": 1.944671201814059,
+          "reference": 339.752,
+          "estimate": 319.86073431963877,
+          "cents": -104.44577239694604
+        },
+        {
+          "time": 3.0882539682539685,
+          "reference": 196.599,
+          "estimate": 96.74101764302789,
+          "cents": -1227.6676372651123
+        },
+        {
+          "time": 4.533696145124717,
+          "reference": 267.3,
+          "estimate": 283.83687904806123,
+          "cents": 103.9226567818659
+        },
+        {
+          "time": 5.828208616780046,
+          "reference": 248.49,
+          "estimate": 229.90477514056096,
+          "cents": -134.58163586676386
+        },
+        {
+          "time": 6.286802721088436,
+          "reference": 343.764,
+          "estimate": 317.93317069245523,
+          "cents": -135.23391044609463
+        },
+        {
+          "time": 6.6118820861678005,
+          "reference": 325.463,
+          "estimate": 348.20027523215174,
+          "cents": 116.90856272575388
+        }
+      ]
+    }
+  ]
+}

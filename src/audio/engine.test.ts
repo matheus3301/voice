@@ -58,6 +58,15 @@ class FakeContext {
   audioWorklet = { addModule: vi.fn(async () => {}) };
   resume = vi.fn(async () => {});
   close = vi.fn(async () => {});
+  decodeAudioData = vi.fn(
+    async (_data: ArrayBuffer) =>
+      ({
+        duration: 1,
+        numberOfChannels: 1,
+        sampleRate: 48000,
+        getChannelData: () => new Float32Array(48000),
+      }) as unknown as AudioBuffer,
+  );
   constructor() {
     FakeContext.latest = this;
   }
@@ -177,6 +186,38 @@ describe("Web Audio transport resources", () => {
     expect(onEnded).toHaveBeenCalledOnce();
     engine.dispose();
     expect(context.close).toHaveBeenCalledOnce();
+  });
+
+  it("removes a track and clamps the playhead to the remaining duration", async () => {
+    await engine.play(10);
+    engine.removeTrack("target");
+    expect(engine.duration).toBe(8);
+    expect(engine.getPosition()).toBe(8);
+    expect(engine.isPlaying).toBe(false);
+    engine.removeTrack("backing");
+    expect(engine.duration).toBe(0);
+    expect(engine.getPosition()).toBe(0);
+  });
+
+  it("does not launch analysis when decoding finishes after cancellation", async () => {
+    await engine.getDiagnostics();
+    let finishDecode!: (value: AudioBuffer) => void;
+    FakeContext.latest.decodeAudioData.mockImplementation(
+      () =>
+        new Promise<AudioBuffer>((resolve) => {
+          finishDecode = resolve;
+        }),
+    );
+    const file = {
+      name: "voice.wav",
+      size: 20,
+      arrayBuffer: async () => new ArrayBuffer(20),
+    } as File;
+    const pending = engine.loadFile(file, "target");
+    await Promise.resolve();
+    engine.cancelAnalysis();
+    finishDecode({ duration: 1, numberOfChannels: 1 } as AudioBuffer);
+    await expect(pending).rejects.toThrow("cancelada");
   });
 });
 

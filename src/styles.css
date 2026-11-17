@@ -131,6 +131,7 @@ input[type='range']::-moz-range-thumb { width: 8px; height: 12px; border: 1px so
 .roll-legend span { display: flex; align-items: center; gap: 6px; }
 .roll-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; background: var(--target); }
 .roll-legend .voice-key { background: var(--voice); }
+.roll-legend .candidate-key { background: var(--muted); opacity: .6; }
 .roll-tools { display: flex; align-items: center; gap: 12px; color: var(--secondary); font-size: 11px; }
 .interval-label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
 .interval-label strong { color: #c3d5c9; font: 11px var(--mono); }
@@ -229,6 +230,11 @@ input[type='range']::-moz-range-thumb { width: 8px; height: 12px; border: 1px so
 .upload-slot p { margin-bottom: 22px; color: var(--muted); font-size: 12px; line-height: 1.7; }
 input.file-picker { position: absolute; overflow: hidden; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); }
 .upload-slot .button { min-height: 33px; padding: 8px 11px; font-size: 11px; }
+.upload-slot .target-mode-field { width: 100%; margin: -4px 0 18px; }
+.target-mode-field small { max-width: 100%; line-height: 1.6; }
+.remove-backing { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; padding: 4px 0; border: 0; background: transparent; color: var(--secondary); font-size: 11px; }
+.remove-backing:hover:not(:disabled) { color: var(--danger); }
+.analysis-status { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 5px; background: var(--console); color: var(--secondary); font-size: 11px; }
 .drop-hint { margin-top: 10px; color: var(--muted); font-size: 10px; }
 .upload-progress { width: 100%; margin-top: 2px; color: #a2c6ae; font-size: 10px; }
 .upload-progress > span { display: block; margin-top: 8px; }
@@ -254,6 +260,20 @@ input.file-picker { position: absolute; overflow: hidden; width: 1px; height: 1p
 .warning { padding: 10px; border: 1px solid #efb56f20; border-radius: 4px; background: #efb56f09; color: #c6ad88; font-size: 10px; line-height: 1.6; }
 .error-banner { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 14px 24px 0; padding: 12px 16px; border: 1px solid #f38d8640; border-radius: 6px; background: #f38d8610; color: #f7b8b3; font-size: 12px; line-height: 1.6; }
 .error-banner button { flex-shrink: 0; border: 0; background: none; color: #e6aaa3; }
+
+/* A tentative transcription is reviewed in the same console as the timeline. */
+.target-review { padding: 0 16px 16px; }
+.target-review .panel-heading { gap: 12px; padding-right: 0; padding-left: 0; }
+.target-review .panel-heading .section-label { display: inline-flex; align-items: center; gap: 8px; }
+.review-state { display: inline-flex; align-items: center; gap: 5px; color: var(--voice); font-size: 10px; white-space: nowrap; }
+.review-state.confirmed { color: var(--target); }
+.review-explanation { max-width: 84ch; color: var(--secondary); font-size: 11px; line-height: 1.7; }
+.review-controls { display: grid; grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(80px, 1fr)); gap: 12px; margin-top: 16px; }
+.review-controls .field { margin-bottom: 0; }
+.review-summary { margin: 14px 0; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.review-summary > span { color: var(--secondary); font: 10px var(--mono); }
+.review-summary > p { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.score-pending { color: var(--voice) !important; }
 
 /* Wider desks retain the same density and give pitch the extra room. */
 @media (min-width: 1600px) {
@@ -293,6 +313,12 @@ input.file-picker { position: absolute; overflow: hidden; width: 1px; height: 1p
   .app-footer { padding-right: 20px; padding-left: 20px; }
 }
 @media (max-width: 680px) {
+  .review-controls { grid-template-columns: 1fr 1fr; }
+  .review-controls .field:first-child { grid-column: 1 / -1; }
+  .target-review { padding-right: 13px; padding-left: 13px; }
+  .target-review .panel-heading { flex-wrap: wrap; }
+  .target-review .button { width: 100%; }
+  .analysis-status { flex-wrap: wrap; }
   .topbar { padding: 0 16px; }
   .brand { gap: 8px; font-size: 14px; }
   .header-session { display: none; }

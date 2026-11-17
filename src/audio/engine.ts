@@ -5,9 +5,11 @@ import type {
   LoopRegion,
   PitchFrame,
   TrackRole,
+  TargetMode,
 } from "../types";
 import { midiToFrequency, createWaveform, segmentNotes } from "./pitch";
 import { capturePosition, transportPosition, validLoop } from "./transport";
+import { PolyphonicAnalyzer } from "./polyphonic-analyzer";
 
 interface AnalysisResult {
   waveform: Float32Array;
@@ -44,6 +46,8 @@ export class AudioEngine {
   private analysisWorker: Worker | null = null;
   private pendingAnalysis = new Map<number, PendingAnalysis>();
   private analysisId = 0;
+  private analysisGeneration = 0;
+  private polyphonicAnalyzer = new PolyphonicAnalyzer();
   private stream: MediaStream | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
   private splitter: ChannelSplitterNode | null = null;
@@ -130,7 +134,9 @@ export class AudioEngine {
     file: File,
     role: TrackRole,
     onProgress?: (value: number) => void,
+    mode: TargetMode = "monophonic",
   ): Promise<AudioTrack> {
+    const generation = this.analysisGeneration;
     if (file.size > MAX_FILE_SIZE)
       throw new Error("O limite é 80 MB por arquivo. Exporte uma faixa menor.");
     if (file.size === 0) throw new Error("Esse arquivo está vazio.");
@@ -138,43 +144,117 @@ export class AudioEngine {
     onProgress?.(0.02);
     let buffer: AudioBuffer;
     try {
-      buffer = await context.decodeAudioData(await file.arrayBuffer());
+      const data = await file.arrayBuffer();
+      this.assertAnalysisActive(generation);
+      buffer = await context.decodeAudioData(data);
     } catch {
+      this.assertAnalysisActive(generation);
       throw new Error(
         "Não foi possível abrir esse áudio. Tente WAV, MP3, M4A, OGG ou FLAC compatível com seu navegador.",
       );
     }
+    this.assertAnalysisActive(generation);
     if (buffer.duration > MAX_DURATION)
       throw new Error(
         "O limite da v0 é 15 minutos por faixa. Exporte um trecho menor.",
       );
     if (buffer.duration < 0.1 || !buffer.numberOfChannels)
       throw new Error("O áudio precisa ter pelo menos 0,1 segundo.");
-    onProgress?.(0.08);
+    const effectiveMode = role === "target" ? mode : "monophonic";
+    const result = await this.analyzeBuffer(
+      buffer,
+      role === "target" && effectiveMode === "monophonic",
+      (value) =>
+        onProgress?.(
+          0.08 + value * (effectiveMode === "polyphonic" ? 0.02 : 0.92),
+        ),
+    );
+    this.assertAnalysisActive(generation);
+    if (effectiveMode === "polyphonic") {
+      result.notes = await this.polyphonicAnalyzer.analyze(buffer, (value) =>
+        onProgress?.(0.1 + value * 0.9),
+      );
+      this.assertAnalysisActive(generation);
+      result.pitch = [];
+    }
+    onProgress?.(1);
+    return { name: file.name, buffer, ...result, analysisMode: effectiveMode };
+  }
+
+  async analyzeTrack(
+    track: AudioTrack,
+    mode: TargetMode,
+    onProgress?: (value: number) => void,
+  ): Promise<AudioTrack> {
+    const generation = this.analysisGeneration;
+    this.assertAnalysisActive(generation);
+    if (mode === "polyphonic") {
+      const notes = await this.polyphonicAnalyzer.analyze(
+        track.buffer,
+        onProgress,
+      );
+      this.assertAnalysisActive(generation);
+      return { ...track, notes, pitch: [], analysisMode: mode };
+    }
+    const result = await this.analyzeBuffer(track.buffer, true, onProgress);
+    this.assertAnalysisActive(generation);
+    return { ...track, ...result, analysisMode: mode };
+  }
+
+  private analyzeBuffer(
+    buffer: AudioBuffer,
+    analyze: boolean,
+    onProgress?: (value: number) => void,
+  ): Promise<AnalysisResult> {
     const channels: Float32Array[] = [];
-    // Copy: transferring the analysis input must never detach playback's AudioBuffer.
+    // Copy: transferring analysis input never detaches playback's AudioBuffer.
     for (let i = 0; i < Math.min(buffer.numberOfChannels, 2); i++)
       channels.push(buffer.getChannelData(i).slice());
-    const result = await new Promise<AnalysisResult>((resolve, reject) => {
+    return new Promise<AnalysisResult>((resolve, reject) => {
       const id = ++this.analysisId;
-      this.pendingAnalysis.set(id, {
-        resolve,
-        reject,
-        progress: (value) => onProgress?.(0.08 + value * 0.92),
-      });
-      this.analyzer().postMessage(
-        {
-          id,
-          channels,
-          sampleRate: buffer.sampleRate,
-          duration: buffer.duration,
-          analyze: role === "target",
-        },
-        channels.map((channel) => channel.buffer),
-      );
+      this.pendingAnalysis.set(id, { resolve, reject, progress: onProgress });
+      try {
+        this.analyzer().postMessage(
+          {
+            id,
+            channels,
+            sampleRate: buffer.sampleRate,
+            duration: buffer.duration,
+            analyze,
+          },
+          channels.map((channel) => channel.buffer),
+        );
+      } catch (error) {
+        this.pendingAnalysis.delete(id);
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("Falha ao preparar a análise."),
+        );
+      }
     });
-    onProgress?.(1);
-    return { name: file.name, buffer, ...result };
+  }
+
+  private assertAnalysisActive(generation: number): void {
+    if (generation !== this.analysisGeneration || this.disposed)
+      throw new Error("Análise cancelada.");
+  }
+
+  cancelAnalysis(): void {
+    this.analysisGeneration++;
+    this.analysisWorker?.terminate();
+    this.analysisWorker = null;
+    for (const pending of this.pendingAnalysis.values())
+      pending.reject(new Error("Análise cancelada."));
+    this.pendingAnalysis.clear();
+    this.polyphonicAnalyzer.cancel();
+  }
+
+  removeTrack(role: TrackRole): void {
+    this.pause();
+    delete this.tracks[role];
+    this.offset = Math.min(this.offset, this.duration);
+    this.loop = validLoop(this.loop, this.duration);
   }
 
   setTrack(role: TrackRole, track: AudioTrack): void {
@@ -646,11 +726,7 @@ export class AudioEngine {
   dispose(): void {
     this.pause();
     this.disconnectMic();
-    this.analysisWorker?.terminate();
-    this.analysisWorker = null;
-    for (const pending of this.pendingAnalysis.values())
-      pending.reject(new Error("A sessão foi encerrada."));
-    this.pendingAnalysis.clear();
+    this.cancelAnalysis();
     if (this.context) void this.context.close();
     this.context = null;
     this.tracks = {};

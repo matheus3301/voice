@@ -1,0 +1,996 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-11-17T01:43:37.131Z",
+  "scope": "3 fixed artificial two-voice mixtures; first 8s per source; NOT a natural choir benchmark",
+  "sources": {
+    "dataset": "Vocadito, Zenodo 5578807 v3",
+    "license": "CC-BY-4.0",
+    "archiveMd5": "dea40fd18f14d899643c4ba221b33a46",
+    "model": "spotify/basic-pitch-ts",
+    "modelProvenance": {
+      "project": "spotify/basic-pitch-ts",
+      "commit": "2d498f82b61c71898edf0e8dd661b99076676c8b",
+      "license": "Apache-2.0",
+      "retrieved": "2026-11-16",
+      "files": [
+        {
+          "file": "model.json",
+          "source": "https://raw.githubusercontent.com/spotify/basic-pitch-ts/2d498f82b61c71898edf0e8dd661b99076676c8b/model/model.json",
+          "bytes": 174537,
+          "sha256": "1ed1aaee3409ec1dc098c8b01f430c0911f6fe9412e7af8086750f9e8f302f68"
+        },
+        {
+          "file": "group1-shard1of1.bin",
+          "source": "https://raw.githubusercontent.com/spotify/basic-pitch-ts/2d498f82b61c71898edf0e8dd661b99076676c8b/model/group1-shard1of1.bin",
+          "bytes": 742392,
+          "sha256": "b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c"
+        },
+        {
+          "file": "LICENSE",
+          "source": "https://raw.githubusercontent.com/spotify/basic-pitch-ts/2d498f82b61c71898edf0e8dd661b99076676c8b/LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    }
+  },
+  "modelHashes": [
+    {
+      "file": "model.json",
+      "sha256": "1ed1aaee3409ec1dc098c8b01f430c0911f6fe9412e7af8086750f9e8f302f68"
+    },
+    {
+      "file": "group1-shard1of1.bin",
+      "sha256": "b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c"
+    }
+  ],
+  "versions": {
+    "node": "v22.22.3",
+    "tfjs": "3.21.0",
+    "basicPitch": "1.0.1",
+    "backend": "cpu",
+    "platform": "darwin/arm64",
+    "ffmpeg": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers"
+  },
+  "productionSourceHashes": {
+    "worker": "d85a2f987fadbbf85178b67689f7dc4c3377fe98f241c511e6ee609b470e28db",
+    "resampler": "56e171ef2ef28ded0ee959ed8dc943e67f4ff01b211c67b0caa4e03433726541"
+  },
+  "scriptSha256": "3eddbc7da0b2bcee1e3cd160fc3247c2061a36d0087a5b651bd098e968136fb1",
+  "protocol": {
+    "mixture": "0.5*a+0.5*b at original start times; ffmpeg decode preserving original rate/channels, then application resampleMono box-filter to mono 22050Hz; no per-source peak normalization, shifts, pitch changes or persisted mixture audio",
+    "groundTruth": "published continuous F0 CSV, nearest timestamp to common 10ms grid, no timing shift; two sources retained even in unison",
+    "predictions": "active notes from noteFramesToTime(outputToNotesPoly(frames,onsets,0.5,0.3,5)); frequency at integer MIDI centre; unique active pitches; pitch bends NOT included",
+    "matching": "maximum-cardinality 1:1 bipartite matching within 50 cents at each frame; no octave equivalence",
+    "separatedSubset": "frames with both sources voiced and their reference F0 separated by more than 100 cents",
+    "onsetThreshold": 0.5,
+    "frameThreshold": 0.3,
+    "minimumNoteFrames": 5,
+    "gridSeconds": 0.01,
+    "toleranceCents": 50
+  },
+  "durationSeconds": 24,
+  "elapsedSeconds": 20.003458416,
+  "counts": {
+    "frames": 2400,
+    "referencePitches": 3129,
+    "predictedPitches": 2286,
+    "truePositive": 1838,
+    "falsePositive": 448,
+    "falseNegative": 1291
+  },
+  "microMetrics": {
+    "precision": 80.40244969378828,
+    "recall": 58.74081176094599,
+    "f1": 67.88550323176362
+  },
+  "separatedTwoVoiceCounts": {
+    "frames": 964,
+    "referencePitches": 1928,
+    "predictedPitches": 1365,
+    "truePositive": 1123,
+    "falsePositive": 242,
+    "falseNegative": 805
+  },
+  "separatedTwoVoiceMetrics": {
+    "precision": 82.27106227106226,
+    "recall": 58.246887966804984,
+    "f1": 68.20528393562103
+  },
+  "results": [
+    {
+      "pair": "vocadito_1+vocadito_21",
+      "sources": [
+        {
+          "id": "vocadito_1",
+          "sourceRate": 44100,
+          "channelCount": 1,
+          "audioSha256": "b509768315efad8120183b48e01d6090f1649d5bcc691241940dc7a100274ab8",
+          "annotationSha256": "dd10beba57b94d37b1d3263f5deca3b780adc7ec90f1d43bb00099b02c2878e5"
+        },
+        {
+          "id": "vocadito_21",
+          "sourceRate": 44100,
+          "channelCount": 1,
+          "audioSha256": "d9d3c20794fd3b42e8f7693b91e8194844a6b80b3932ae4fc06d8e0e277687a7",
+          "annotationSha256": "683af807f48f0a04718e02a45128fc2ee848307cd9b7eb0ac06de2218645791c"
+        }
+      ],
+      "durationSeconds": 8,
+      "mixtureSha256": "90789f416d22f0a076a9b4a79a5b63028f93755952ce2276e2749c5fb2d989a8",
+      "inferenceSeconds": 6.530299875,
+      "realTimeFactor": 0.816287484375,
+      "outputFrames": 688,
+      "predictedNotes": 32,
+      "unisonOrNearUnisonFrames": 81,
+      "counts": {
+        "frames": 800,
+        "referencePitches": 1108,
+        "predictedPitches": 557,
+        "truePositive": 471,
+        "falsePositive": 86,
+        "falseNegative": 637
+      },
+      "metrics": {
+        "precision": 84.56014362657092,
+        "recall": 42.50902527075812,
+        "f1": 56.576576576576564
+      },
+      "separatedTwoVoiceCounts": {
+        "frames": 330,
+        "referencePitches": 660,
+        "predictedPitches": 300,
+        "truePositive": 258,
+        "falsePositive": 42,
+        "falseNegative": 402
+      },
+      "separatedTwoVoiceMetrics": {
+        "precision": 86,
+        "recall": 39.09090909090909,
+        "f1": 53.75
+      },
+      "notes": [
+        {
+          "pitchMidi": 55,
+          "amplitude": 0.7007356082138262,
+          "startTimeSeconds": 7.619996825396825,
+          "durationSeconds": 0.2205895691609978
+        },
+        {
+          "pitchMidi": 56,
+          "amplitude": 0.6116524711251259,
+          "startTimeSeconds": 7.5271170068027216,
+          "durationSeconds": 0.09287981859410355
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.5748865375152001,
+          "startTimeSeconds": 7.515507029478458,
+          "durationSeconds": 0.30185941043083897
+        },
+        {
+          "pitchMidi": 53,
+          "amplitude": 0.6043542602232524,
+          "startTimeSeconds": 7.271697505668935,
+          "durationSeconds": 0.16253968253968232
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.5431867043177286,
+          "startTimeSeconds": 6.853738321995465,
+          "durationSeconds": 0.1741496598639456
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.4242618041379111,
+          "startTimeSeconds": 6.482219047619048,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.6888966846924561,
+          "startTimeSeconds": 6.180359637188209,
+          "durationSeconds": 0.30185941043083897
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.33880164474248886,
+          "startTimeSeconds": 6.017819954648526,
+          "durationSeconds": 0.1625396825396832
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.5281900044749764,
+          "startTimeSeconds": 5.819166439909297,
+          "durationSeconds": 0.18704353741496682
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.4526475822484052,
+          "startTimeSeconds": 5.505697052154195,
+          "durationSeconds": 0.31346938775510136
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.6061433150487787,
+          "startTimeSeconds": 5.285107482993197,
+          "durationSeconds": 0.19736961451247126
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.24799446335860661,
+          "startTimeSeconds": 5.203837641723355,
+          "durationSeconds": 0.08126984126984205
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.5183633308519017,
+          "startTimeSeconds": 4.948418140589569,
+          "durationSeconds": 0.25541950113378675
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.6004825673605266,
+          "startTimeSeconds": 4.901978231292516,
+          "durationSeconds": 0.2205895691609978
+        },
+        {
+          "pitchMidi": 53,
+          "amplitude": 0.36312708258628845,
+          "startTimeSeconds": 4.460799092970522,
+          "durationSeconds": 0.06965986394557788
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.346121147274971,
+          "startTimeSeconds": 4.205379591836735,
+          "durationSeconds": 0.1160997732426301
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.43080979372773853,
+          "startTimeSeconds": 3.902236281179138,
+          "durationSeconds": 0.152213605442177
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.607290729880333,
+          "startTimeSeconds": 3.7396965986394557,
+          "durationSeconds": 0.16253968253968232
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.49464632977138867,
+          "startTimeSeconds": 3.56554693877551,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.3449067436158657,
+          "startTimeSeconds": 3.4262272108843534,
+          "durationSeconds": 0.13931972789115665
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.6070916950702667,
+          "startTimeSeconds": 3.205637641723356,
+          "durationSeconds": 0.22058956916099737
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.5509305213178907,
+          "startTimeSeconds": 2.8108984126984127,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.7159656643867492,
+          "startTimeSeconds": 2.694798639455782,
+          "durationSeconds": 0.11609977324263054
+        },
+        {
+          "pitchMidi": 52,
+          "amplitude": 0.5504759086502923,
+          "startTimeSeconds": 2.590308843537415,
+          "durationSeconds": 0.10448979591836727
+        },
+        {
+          "pitchMidi": 57,
+          "amplitude": 0.3995714522898197,
+          "startTimeSeconds": 2.0794698412698414,
+          "durationSeconds": 0.09287981859410399
+        },
+        {
+          "pitchMidi": 53,
+          "amplitude": 0.47045897895639593,
+          "startTimeSeconds": 1.7182766439909296,
+          "durationSeconds": 0.3728031746031746
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.4300814300775528,
+          "startTimeSeconds": 1.6021768707482993,
+          "durationSeconds": 0.11609977324263032
+        },
+        {
+          "pitchMidi": 53,
+          "amplitude": 0.4102105952444531,
+          "startTimeSeconds": 1.3235374149659864,
+          "durationSeconds": 0.2438095238095237
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.6952163577079773,
+          "startTimeSeconds": 1.0100680272108844,
+          "durationSeconds": 0.35990929705215424
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.3089117333292961,
+          "startTimeSeconds": 0.8707482993197279,
+          "durationSeconds": 0.13931972789115654
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.4259941391646862,
+          "startTimeSeconds": 0.6849886621315193,
+          "durationSeconds": 0.09287981859410421
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.4320623013708327,
+          "startTimeSeconds": 2.392939229024943,
+          "durationSeconds": 0.10448979591836727
+        }
+      ]
+    },
+    {
+      "pair": "vocadito_2+vocadito_22",
+      "sources": [
+        {
+          "id": "vocadito_2",
+          "sourceRate": 44100,
+          "channelCount": 1,
+          "audioSha256": "8dcc99c3b08a9a5800b793e3d65cccfb4464961f15cf8ccde25bd4c8b853d519",
+          "annotationSha256": "4d515029c036312e8d04545470c3d5dc5db3132dec54813624faee7d84cd6363"
+        },
+        {
+          "id": "vocadito_22",
+          "sourceRate": 44100,
+          "channelCount": 1,
+          "audioSha256": "6629d0ecd7acddd1ce2877d00bc7ef80dc01fdd20f3225b9c2ed907da12f989e",
+          "annotationSha256": "f6fbca9e262fe338f3ca8f99be5d08d8a4080a5b09337f4ba7f8366b0b159464"
+        }
+      ],
+      "durationSeconds": 8,
+      "mixtureSha256": "0cf756957bd0d5b6d52155ecb3e43d55678f0a0e5397deed9991d8ab6af6d332",
+      "inferenceSeconds": 6.465554084000001,
+      "realTimeFactor": 0.8081942605000001,
+      "outputFrames": 688,
+      "predictedNotes": 47,
+      "unisonOrNearUnisonFrames": 53,
+      "counts": {
+        "frames": 800,
+        "referencePitches": 1096,
+        "predictedPitches": 1032,
+        "truePositive": 783,
+        "falsePositive": 249,
+        "falseNegative": 313
+      },
+      "metrics": {
+        "precision": 75.87209302325581,
+        "recall": 71.44160583941606,
+        "f1": 73.59022556390977
+      },
+      "separatedTwoVoiceCounts": {
+        "frames": 384,
+        "referencePitches": 768,
+        "predictedPitches": 679,
+        "truePositive": 533,
+        "falsePositive": 146,
+        "falseNegative": 235
+      },
+      "separatedTwoVoiceMetrics": {
+        "precision": 78.4977908689249,
+        "recall": 69.40104166666666,
+        "f1": 73.6696613683483
+      },
+      "notes": [
+        {
+          "pitchMidi": 61,
+          "amplitude": 0.5923622283670638,
+          "startTimeSeconds": 7.515507029478458,
+          "durationSeconds": 0.10448979591836682
+        },
+        {
+          "pitchMidi": 61,
+          "amplitude": 0.3458254916800393,
+          "startTimeSeconds": 7.411017233560091,
+          "durationSeconds": 0.10448979591836771
+        },
+        {
+          "pitchMidi": 64,
+          "amplitude": 0.5443435609340668,
+          "startTimeSeconds": 7.318137414965986,
+          "durationSeconds": 0.2205895691609978
+        },
+        {
+          "pitchMidi": 63,
+          "amplitude": 0.5715462035602994,
+          "startTimeSeconds": 7.213647619047619,
+          "durationSeconds": 0.10448979591836682
+        },
+        {
+          "pitchMidi": 63,
+          "amplitude": 0.6116997216429029,
+          "startTimeSeconds": 7.051107936507937,
+          "durationSeconds": 0.16253968253968232
+        },
+        {
+          "pitchMidi": 64,
+          "amplitude": 0.6960621135575431,
+          "startTimeSeconds": 6.969838095238095,
+          "durationSeconds": 0.08126984126984205
+        },
+        {
+          "pitchMidi": 63,
+          "amplitude": 0.6702064004811373,
+          "startTimeSeconds": 6.842128344671202,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 63,
+          "amplitude": 0.6134294308722019,
+          "startTimeSeconds": 6.749248526077098,
+          "durationSeconds": 0.09287981859410355
+        },
+        {
+          "pitchMidi": 92,
+          "amplitude": 0.3701114739690508,
+          "startTimeSeconds": 6.621538775510205,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 64,
+          "amplitude": 0.406114173206416,
+          "startTimeSeconds": 6.621538775510205,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 60,
+          "amplitude": 0.59910617533483,
+          "startTimeSeconds": 6.099089795918368,
+          "durationSeconds": 0.22058956916099692
+        },
+        {
+          "pitchMidi": 65,
+          "amplitude": 0.6569620254563122,
+          "startTimeSeconds": 6.017819954648526,
+          "durationSeconds": 0.47600907029478456
+        },
+        {
+          "pitchMidi": 60,
+          "amplitude": 0.4734862518887366,
+          "startTimeSeconds": 5.749506575963719,
+          "durationSeconds": 0.34958321995464914
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.522543254825804,
+          "startTimeSeconds": 5.726286621315192,
+          "durationSeconds": 0.20897959183673542
+        },
+        {
+          "pitchMidi": 91,
+          "amplitude": 0.38952967311654774,
+          "startTimeSeconds": 5.71467664399093,
+          "durationSeconds": 0.16253968253968232
+        },
+        {
+          "pitchMidi": 59,
+          "amplitude": 0.6647005975246429,
+          "startTimeSeconds": 5.621796825396825,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.3058630423620343,
+          "startTimeSeconds": 5.540526984126984,
+          "durationSeconds": 0.18575963718820798
+        },
+        {
+          "pitchMidi": 68,
+          "amplitude": 0.6010605206956035,
+          "startTimeSeconds": 5.006468027210884,
+          "durationSeconds": 0.5340589569161001
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.6142642271518707,
+          "startTimeSeconds": 4.704608616780045,
+          "durationSeconds": 0.2902494331065757
+        },
+        {
+          "pitchMidi": 79,
+          "amplitude": 0.5440762060530046,
+          "startTimeSeconds": 4.321479365079365,
+          "durationSeconds": 0.19736961451247126
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.6991254217696913,
+          "startTimeSeconds": 4.321479365079365,
+          "durationSeconds": 0.38312925170068013
+        },
+        {
+          "pitchMidi": 57,
+          "amplitude": 0.5454425799846649,
+          "startTimeSeconds": 4.089279818594104,
+          "durationSeconds": 0.2902494331065757
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.6162351312789511,
+          "startTimeSeconds": 3.786136507936508,
+          "durationSeconds": 0.5353428571428571
+        },
+        {
+          "pitchMidi": 57,
+          "amplitude": 0.6266670040786266,
+          "startTimeSeconds": 3.6584267573696145,
+          "durationSeconds": 0.18575963718820843
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.6886066923538844,
+          "startTimeSeconds": 3.0895378684807255,
+          "durationSeconds": 0.6965986394557824
+        },
+        {
+          "pitchMidi": 65,
+          "amplitude": 0.6424128343077267,
+          "startTimeSeconds": 2.903778231292517,
+          "durationSeconds": 0.19736961451247126
+        },
+        {
+          "pitchMidi": 60,
+          "amplitude": 0.5675747007576387,
+          "startTimeSeconds": 2.7876784580498866,
+          "durationSeconds": 0.7778684807256235
+        },
+        {
+          "pitchMidi": 65,
+          "amplitude": 0.7703862098547128,
+          "startTimeSeconds": 2.7528485260770976,
+          "durationSeconds": 0.15092970521541949
+        },
+        {
+          "pitchMidi": 61,
+          "amplitude": 0.37052667140960693,
+          "startTimeSeconds": 2.7064086167800454,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 65,
+          "amplitude": 0.7677466630935669,
+          "startTimeSeconds": 2.578698866213152,
+          "durationSeconds": 0.1741496598639456
+        },
+        {
+          "pitchMidi": 63,
+          "amplitude": 0.3766875233915117,
+          "startTimeSeconds": 2.26522947845805,
+          "durationSeconds": 0.10448979591836727
+        },
+        {
+          "pitchMidi": 64,
+          "amplitude": 0.6947871446609497,
+          "startTimeSeconds": 2.1491297052154192,
+          "durationSeconds": 0.2786394557823133
+        },
+        {
+          "pitchMidi": 76,
+          "amplitude": 0.3762292928993702,
+          "startTimeSeconds": 2.021419954648526,
+          "durationSeconds": 0.2321995464852611
+        },
+        {
+          "pitchMidi": 64,
+          "amplitude": 0.7653658552603289,
+          "startTimeSeconds": 2.021419954648526,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 62,
+          "amplitude": 0.41237441301345823,
+          "startTimeSeconds": 1.7414965986394557,
+          "durationSeconds": 0.23219954648526087
+        },
+        {
+          "pitchMidi": 56,
+          "amplitude": 0.3674800656735897,
+          "startTimeSeconds": 1.486077097505669,
+          "durationSeconds": 0.09287981859410421
+        },
+        {
+          "pitchMidi": 60,
+          "amplitude": 0.7117101112380624,
+          "startTimeSeconds": 1.3583673469387756,
+          "durationSeconds": 0.3715192743764171
+        },
+        {
+          "pitchMidi": 60,
+          "amplitude": 0.7944288578900424,
+          "startTimeSeconds": 1.230657596371882,
+          "durationSeconds": 0.1277097505668936
+        },
+        {
+          "pitchMidi": 60,
+          "amplitude": 0.7692007743395292,
+          "startTimeSeconds": 1.0797278911564625,
+          "durationSeconds": 0.15092970521541949
+        },
+        {
+          "pitchMidi": 91,
+          "amplitude": 0.460867652669549,
+          "startTimeSeconds": 4.739438548752834,
+          "durationSeconds": 0.18575963718820887
+        },
+        {
+          "pitchMidi": 80,
+          "amplitude": 0.4343746683814309,
+          "startTimeSeconds": 5.285107482993197,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 79,
+          "amplitude": 0.4378727376461029,
+          "startTimeSeconds": 4.809098412698413,
+          "durationSeconds": 0.09287981859410355
+        },
+        {
+          "pitchMidi": 79,
+          "amplitude": 0.44510973564216066,
+          "startTimeSeconds": 3.762916553287982,
+          "durationSeconds": 0.31475328798185886
+        },
+        {
+          "pitchMidi": 92,
+          "amplitude": 0.3861243541424091,
+          "startTimeSeconds": 5.273497505668934,
+          "durationSeconds": 0.15092970521541904
+        },
+        {
+          "pitchMidi": 87,
+          "amplitude": 0.3626546710729599,
+          "startTimeSeconds": 5.308327437641723,
+          "durationSeconds": 0.06965986394557788
+        },
+        {
+          "pitchMidi": 67,
+          "amplitude": 0.3506549894809723,
+          "startTimeSeconds": 0.4992290249433107,
+          "durationSeconds": 0.06965986394557822
+        },
+        {
+          "pitchMidi": 79,
+          "amplitude": 0.3333039339631796,
+          "startTimeSeconds": 3.240467573696145,
+          "durationSeconds": 0.18575963718820843
+        }
+      ]
+    },
+    {
+      "pair": "vocadito_3+vocadito_23",
+      "sources": [
+        {
+          "id": "vocadito_3",
+          "sourceRate": 44100,
+          "channelCount": 1,
+          "audioSha256": "73b6fe13bc3435ae9173ee1bdec247e2943526c70cd9b69ab2b35002fa4cb04d",
+          "annotationSha256": "18f48fc77df7dd43c1e4bc588a79482b1d330768d63b76b90e82998573582b6a"
+        },
+        {
+          "id": "vocadito_23",
+          "sourceRate": 44100,
+          "channelCount": 1,
+          "audioSha256": "3cade4af7d869e3175e3684075782a23f6af936942a8684bfbb4fdbe3a4f10e7",
+          "annotationSha256": "1bbb29db223ac10d5bf7219145deefe4336c3f46692bf8f5d3963077543f6930"
+        }
+      ],
+      "durationSeconds": 8,
+      "mixtureSha256": "a951050bb22656b5d1c0a30705312145003b250c058530b03350e78f2cc9bfc8",
+      "inferenceSeconds": 6.405339458999999,
+      "realTimeFactor": 0.8006674323749998,
+      "outputFrames": 688,
+      "predictedNotes": 43,
+      "unisonOrNearUnisonFrames": 68,
+      "counts": {
+        "frames": 800,
+        "referencePitches": 925,
+        "predictedPitches": 697,
+        "truePositive": 584,
+        "falsePositive": 113,
+        "falseNegative": 341
+      },
+      "metrics": {
+        "precision": 83.78766140602582,
+        "recall": 63.13513513513514,
+        "f1": 72.0098643649815
+      },
+      "separatedTwoVoiceCounts": {
+        "frames": 250,
+        "referencePitches": 500,
+        "predictedPitches": 386,
+        "truePositive": 332,
+        "falsePositive": 54,
+        "falseNegative": 168
+      },
+      "separatedTwoVoiceMetrics": {
+        "precision": 86.01036269430051,
+        "recall": 66.4,
+        "f1": 74.94356659142211
+      },
+      "notes": [
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.4562114253640175,
+          "startTimeSeconds": 7.759316553287982,
+          "durationSeconds": 0.18575963718820887
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.27540474917207447,
+          "startTimeSeconds": 7.643216780045352,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.44756051898002625,
+          "startTimeSeconds": 7.550336961451247,
+          "durationSeconds": 0.09287981859410444
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.4783368806044261,
+          "startTimeSeconds": 7.399407256235828,
+          "durationSeconds": 0.13931972789115576
+        },
+        {
+          "pitchMidi": 52,
+          "amplitude": 0.593988510114806,
+          "startTimeSeconds": 7.387797278911565,
+          "durationSeconds": 0.16253968253968232
+        },
+        {
+          "pitchMidi": 48,
+          "amplitude": 0.33025764922300976,
+          "startTimeSeconds": 7.236867573696145,
+          "durationSeconds": 0.06965986394557877
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.5134157347679138,
+          "startTimeSeconds": 6.946618140589569,
+          "durationSeconds": 0.2902494331065757
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.667889042198658,
+          "startTimeSeconds": 6.64475873015873,
+          "durationSeconds": 0.2321995464852611
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.55722747530256,
+          "startTimeSeconds": 6.563488888888889,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 53,
+          "amplitude": 0.5137318760156632,
+          "startTimeSeconds": 6.389339229024944,
+          "durationSeconds": 0.1160997732426301
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.6166591330578453,
+          "startTimeSeconds": 6.26162947845805,
+          "durationSeconds": 0.2205895691609978
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.39799440652132034,
+          "startTimeSeconds": 6.1223097505668935,
+          "durationSeconds": 0.13931972789115665
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.3923308700323105,
+          "startTimeSeconds": 5.9713800453514745,
+          "durationSeconds": 0.09287981859410355
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.6509514578751155,
+          "startTimeSeconds": 5.7378965986394554,
+          "durationSeconds": 0.16253968253968232
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.7459537131445748,
+          "startTimeSeconds": 5.656626757369614,
+          "durationSeconds": 0.08126984126984116
+        },
+        {
+          "pitchMidi": 52,
+          "amplitude": 0.5369466803967953,
+          "startTimeSeconds": 5.56374693877551,
+          "durationSeconds": 0.09287981859410444
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.6788092035314311,
+          "startTimeSeconds": 4.948418140589569,
+          "durationSeconds": 0.26702947845805003
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.5473152456375269,
+          "startTimeSeconds": 4.518848979591836,
+          "durationSeconds": 0.30185941043083897
+        },
+        {
+          "pitchMidi": 54,
+          "amplitude": 0.30989737808704376,
+          "startTimeSeconds": 4.321479365079365,
+          "durationSeconds": 0.06965986394557788
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.6879500114917755,
+          "startTimeSeconds": 4.321479365079365,
+          "durationSeconds": 0.2902494331065757
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.48193832486867905,
+          "startTimeSeconds": 4.228599546485261,
+          "durationSeconds": 0.09287981859410444
+        },
+        {
+          "pitchMidi": 48,
+          "amplitude": 0.26500777900218964,
+          "startTimeSeconds": 4.158939682539683,
+          "durationSeconds": 0.06965986394557788
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.5405411882834001,
+          "startTimeSeconds": 4.019619954648526,
+          "durationSeconds": 0.12770975056689338
+        },
+        {
+          "pitchMidi": 51,
+          "amplitude": 0.35619229078292847,
+          "startTimeSeconds": 3.7745265306122446,
+          "durationSeconds": 0.11609977324263054
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.42602722690655637,
+          "startTimeSeconds": 3.7745265306122446,
+          "durationSeconds": 0.15092970521541949
+        },
+        {
+          "pitchMidi": 46,
+          "amplitude": 0.5028379989994897,
+          "startTimeSeconds": 3.6700367346938774,
+          "durationSeconds": 0.10448979591836727
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.5470159848531088,
+          "startTimeSeconds": 3.56554693877551,
+          "durationSeconds": 0.10448979591836727
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.5232279077172279,
+          "startTimeSeconds": 3.4494471655328796,
+          "durationSeconds": 0.13931972789115665
+        },
+        {
+          "pitchMidi": 48,
+          "amplitude": 0.2943713388272694,
+          "startTimeSeconds": 3.321737414965986,
+          "durationSeconds": 0.0812698412698416
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.6545139491558075,
+          "startTimeSeconds": 2.4277691609977325,
+          "durationSeconds": 0.34829931972789074
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.2667682901024818,
+          "startTimeSeconds": 2.311669387755102,
+          "durationSeconds": 0.11609977324263054
+        },
+        {
+          "pitchMidi": 54,
+          "amplitude": 0.6509241651404988,
+          "startTimeSeconds": 2.1723496598639453,
+          "durationSeconds": 0.3831292517006806
+        },
+        {
+          "pitchMidi": 50,
+          "amplitude": 0.3529607909066336,
+          "startTimeSeconds": 2.1723496598639453,
+          "durationSeconds": 0.0812698412698416
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.473073580048301,
+          "startTimeSeconds": 1.9853061224489796,
+          "durationSeconds": 0.11738367346938783
+        },
+        {
+          "pitchMidi": 54,
+          "amplitude": 0.5863558806124187,
+          "startTimeSeconds": 1.6486167800453515,
+          "durationSeconds": 0.2438095238095237
+        },
+        {
+          "pitchMidi": 47,
+          "amplitude": 0.6038405154690598,
+          "startTimeSeconds": 1.497687074829932,
+          "durationSeconds": 0.38312925170068013
+        },
+        {
+          "pitchMidi": 59,
+          "amplitude": 0.4321561634540558,
+          "startTimeSeconds": 1.486077097505669,
+          "durationSeconds": 0.1741496598639456
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.6295068275928497,
+          "startTimeSeconds": 0.9984580498866213,
+          "durationSeconds": 0.2902494331065759
+        },
+        {
+          "pitchMidi": 54,
+          "amplitude": 0.47010880479445827,
+          "startTimeSeconds": 1.486077097505669,
+          "durationSeconds": 0.15092970521541949
+        },
+        {
+          "pitchMidi": 49,
+          "amplitude": 0.5078114022811254,
+          "startTimeSeconds": 6.865348299319728,
+          "durationSeconds": 0.06965986394557788
+        },
+        {
+          "pitchMidi": 43,
+          "amplitude": 0.5074959434568882,
+          "startTimeSeconds": 2.9850480725623583,
+          "durationSeconds": 0.18575963718820843
+        },
+        {
+          "pitchMidi": 53,
+          "amplitude": 0.45488570974423337,
+          "startTimeSeconds": 2.625138775510204,
+          "durationSeconds": 0.15092970521541949
+        },
+        {
+          "pitchMidi": 43,
+          "amplitude": 0.3743876864512761,
+          "startTimeSeconds": 4.774268480725623,
+          "durationSeconds": 0.06965986394557877
+        }
+      ]
+    }
+  ]
+}

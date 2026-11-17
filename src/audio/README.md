@@ -13,3 +13,11 @@ Unvoiced frames use `frequency: 0`, `midi: NaN`, `confidence: 0`, with RMS retai
 `dispose` permanently releases the instance. React StrictMode's effect setup/cleanup simulation must not permanently dispose a retained instance on its initial mount.
 
 Demo audio is synthesized from sine/harmonic tones and accompaniment, without external audio assets. Its target is a 24 s C-major study with explicit gaps and ground-truth pitch.
+
+## Experimental polyphonic analysis
+
+`TargetMode = 'monophonic' | 'polyphonic'`; `loadFile(file, role, progress?, mode?)` applies the requested mode only to the target. `analyzeTrack(track, mode, progress?)` returns a replacement analysis without installing it. Polyphonic results set `analysisMode: 'polyphonic'`, `notes` to all candidate notes and `pitch: []`. No single voice or SATB identity is inferred. A UI must obtain an explicit selected and reviewed reference before scoring. Candidate note centers are nominal MIDI pitches; scoring those centers is not continuous F0 assessment of the original singer.
+
+Basic Pitch runs on a CPU TensorFlow.js backend in disposable Workers, one per 20 s core plus up to 0.5 s context on each side. Each chunk has a 120 s watchdog. Candidate events are offset to file time and clipped to non-overlapping cores; matching sustained notes are merged only when both chunks predict a boundary crossing. The original 15 min import limit is retained, while neural temporary allocations remain bounded by chunk duration. All model assets are served locally under public/models/basic-pitch with upstream license, source commit and checksums. No user audio is sent to a remote service.
+
+`cancelAnalysis()` terminates mono/poly Workers, rejects pending analysis promises and invalidates in-flight decoding so it cannot launch a new analysis afterward. Native browser decoding itself has no abort API. `removeTrack(role)` pauses and removes the track, then clamps transport and loop to the remaining duration.

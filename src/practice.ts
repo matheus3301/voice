@@ -1,4 +1,21 @@
 import type { PitchFrame, PracticeStats } from "./types";
+/** Reserve a capture tail before declaring missing samples to be mistakes. */
+export function captureEvaluationDelay(
+  windowSize: number,
+  sampleRate: number,
+  compensationMs: number,
+): number {
+  return (
+    windowSize / (2 * sampleRate) + Math.max(0, compensationMs) / 1000 + 0.08
+  );
+}
+export function evaluatedPosition(
+  position: number,
+  attemptStart: number,
+  delay: number,
+): number {
+  return Math.max(attemptStart, position - delay);
+}
 export const noteName = (midi: number | null | undefined): string => {
   if (midi == null || !Number.isFinite(midi)) return "—";
   const rounded = Math.round(midi);
@@ -57,6 +74,10 @@ export class PracticeScorer {
     this.cursor = null;
     this.cents = null;
     this.targetMidi = null;
+    this.previousSample = null;
+  }
+  beginSegment(time: number) {
+    this.cursor = time;
     this.previousSample = null;
   }
   private write(bin: number, value: number) {

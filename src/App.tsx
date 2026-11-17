@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AudioLines,
   ChevronRight,
@@ -21,6 +21,7 @@ import Waveform from "./components/Waveform";
 import { formatTime, intervalName, noteName, pitchAt } from "./practice";
 import AudioSettings from "./components/AudioSettings";
 import UploadSlot from "./components/UploadSlot";
+import TargetReview from "./components/TargetReview";
 
 // Visual brief: a musician at the desk, focused on following the target.
 // The piano roll owns the canvas; quiet graphite panels hold mint target and amber input.
@@ -33,26 +34,27 @@ export default function App() {
   const [windowSeconds, setWindowSeconds] = useState(12);
   const [showHelp, setShowHelp] = useState(false);
   const [output, setOutput] = useState("");
-  const bothReady = !!s.tracks.backing && !!s.tracks.target;
+  const targetReady = !!s.tracks.target;
   const busy = Object.values(s.progress).some((p) => p !== null);
   useEffect(() => {
-    if (demoPending && bothReady && !busy) {
+    if (demoPending && targetReady && !busy) {
       setWorkspace(true);
       setDemoPending(false);
     }
-  }, [demoPending, bothReady, busy]);
+  }, [demoPending, targetReady, busy]);
   const startDemo = () => {
     setDemoPending(true);
     void s.demo();
   };
-  const currentTarget = s.tracks.target
-    ? pitchAt(
-        s.tracks.target.pitch,
-        s.micActive && s.playing && s.currentPitch
-          ? s.currentPitch.time
-          : s.time,
-      )
-    : null;
+  const currentTarget =
+    s.scoringReady && s.practiceTarget
+      ? pitchAt(
+          s.practiceTarget.pitch,
+          s.micActive && s.playing && s.currentPitch
+            ? s.currentPitch.time
+            : s.time,
+        )
+      : null;
   const sung =
     s.micActive &&
     s.currentPitch &&
@@ -62,7 +64,7 @@ export default function App() {
       : null;
   const cents =
     sung && currentTarget ? (sung.midi - currentTarget.midi) * 100 : null;
-  const notes = s.tracks.target?.notes ?? [];
+  const notes = s.scoringReady ? (s.practiceTarget?.notes ?? []) : [];
   const upcoming = notes.find((n) => n.start > s.time + 0.08);
   const currentNote =
     notes.find((n) => n.start <= s.time && n.end >= s.time) ??
@@ -71,7 +73,14 @@ export default function App() {
     upcoming && currentNote
       ? intervalName(upcoming.midi - currentNote.midi)
       : null;
-  const hasScore = s.stats.targetSeconds >= 0.1;
+  const hasScore =
+    s.scoringReady && !s.loopTooShort && s.stats.targetSeconds >= 0.1;
+  const previewTarget = useMemo(
+    () =>
+      s.practiceTarget ??
+      (s.tracks.target ? { ...s.tracks.target, notes: [], pitch: [] } : null),
+    [s.practiceTarget, s.tracks.target],
+  );
   const sessionName =
     s.tracks.target?.name.replace(/\.[^.]+$/, "") ?? "Nova sessão";
   const openImport = () => {
@@ -88,7 +97,7 @@ export default function App() {
             <AudioLines size={19} />
           </span>
           <strong>Estúdio vocal</strong>
-          <span className="version-tag">v0.1</span>
+          <span className="version-tag">v0.2</span>
         </div>
         <div className="header-session">
           <span className="status-dot" />
@@ -149,8 +158,9 @@ export default function App() {
             campos e botões.
           </p>
           <p>
-            Use uma trilha alvo com uma única voz. Instrumentos misturados ou
-            várias vozes simultâneas podem causar erros na detecção de notas.
+            Para uma voz isolada, use o alvo monofônico. Para várias notas, use
+            a análise experimental e revise a linha antes de pontuar. A
+            transcrição não identifica cantores ou naipes.
           </p>
         </aside>
       )}
@@ -158,16 +168,27 @@ export default function App() {
         <main className="upload-screen">
           <div className="upload-heading">
             <span className="section-label">PREPARAR SESSÃO</span>
-            <h1>Carregue suas duas faixas.</h1>
+            <h1>Carregue a faixa que quer estudar.</h1>
             <p>
-              A base toca junto. A voz alvo vira o mapa de notas para você
-              seguir.
+              O alvo vira o mapa de notas para seguir. Adicione uma backing
+              track se quiser praticar com acompanhamento.
             </p>
           </div>
           <div className="upload-grid">
-            <UploadSlot role="backing" studio={s} />
             <UploadSlot role="target" studio={s} />
+            <UploadSlot role="backing" studio={s} />
           </div>
+          {busy && (
+            <div className="analysis-status" role="status">
+              <span>Analisando áudio neste navegador…</span>
+              <button
+                className="button button-secondary small"
+                onClick={s.cancelAnalysis}
+              >
+                Cancelar análise
+              </button>
+            </div>
+          )}
           <div className="upload-footer">
             <div>
               <Headphones size={17} />
@@ -181,7 +202,7 @@ export default function App() {
             </div>
             <button
               className="button button-primary"
-              disabled={!bothReady || busy}
+              disabled={!targetReady || busy}
               onClick={() => setWorkspace(true)}
             >
               Abrir bancada
@@ -317,64 +338,67 @@ export default function App() {
                   <span className="subtle">Clique na onda para posicionar</span>
                 </div>
                 <div className="track-list">
-                  {(["backing", "target"] as const).map((role) => (
-                    <div className={`track-row ${role}`} key={role}>
-                      <div className="track-icon">
-                        <AudioLines size={18} />
-                      </div>
-                      <div className="track-details">
-                        <span className="track-role">
-                          {role === "backing" ? "Backing track" : "Voz alvo"}
-                        </span>
-                        <span
-                          className="track-name"
-                          title={s.tracks[role]?.name}
-                        >
-                          {s.tracks[role]?.name ?? "Sem arquivo"}
-                        </span>
-                      </div>
-                      <Waveform
-                        track={s.tracks[role]}
-                        time={s.time}
-                        duration={s.duration}
-                        onSeek={s.seek}
-                        color={role === "backing" ? "#87a5b8" : "#a8e4ca"}
-                        loop={s.loop}
-                      />
-                      <div className="track-controls">
-                        <button
-                          className={`mute-button ${s.muted[role] ? "muted" : ""}`}
-                          aria-label={`${s.muted[role] ? "Ativar" : "Silenciar"} ${role === "backing" ? "backing track" : "voz alvo"}`}
-                          aria-pressed={s.muted[role]}
-                          onClick={() => s.toggleMute(role)}
-                        >
-                          {s.muted[role] ? (
-                            <VolumeX size={16} />
-                          ) : (
-                            <Volume2 size={16} />
-                          )}
-                        </button>
-                        <input
-                          type="range"
-                          aria-label={`Volume ${role === "backing" ? "backing track" : "voz alvo"}`}
-                          min={0}
-                          max={1}
-                          step={0.01}
-                          value={s.volumes[role]}
-                          onChange={(e) =>
-                            s.setVolume(role, Number(e.target.value))
-                          }
+                  {(["backing", "target"] as const)
+                    .filter((role) => !!s.tracks[role])
+                    .map((role) => (
+                      <div className={`track-row ${role}`} key={role}>
+                        <div className="track-icon">
+                          <AudioLines size={18} />
+                        </div>
+                        <div className="track-details">
+                          <span className="track-role">
+                            {role === "backing" ? "Backing track" : "Voz alvo"}
+                          </span>
+                          <span
+                            className="track-name"
+                            title={s.tracks[role]?.name}
+                          >
+                            {s.tracks[role]?.name ?? "Sem arquivo"}
+                          </span>
+                        </div>
+                        <Waveform
+                          track={s.tracks[role]}
+                          time={s.time}
+                          duration={s.duration}
+                          onSeek={s.seek}
+                          color={role === "backing" ? "#87a5b8" : "#a8e4ca"}
+                          loop={s.loop}
                         />
-                        <span className="track-volume">
-                          {s.muted[role]
-                            ? "−∞"
-                            : `${Math.round(s.volumes[role] * 100)}%`}
-                        </span>
+                        <div className="track-controls">
+                          <button
+                            className={`mute-button ${s.muted[role] ? "muted" : ""}`}
+                            aria-label={`${s.muted[role] ? "Ativar" : "Silenciar"} ${role === "backing" ? "backing track" : "voz alvo"}`}
+                            aria-pressed={s.muted[role]}
+                            onClick={() => s.toggleMute(role)}
+                          >
+                            {s.muted[role] ? (
+                              <VolumeX size={16} />
+                            ) : (
+                              <Volume2 size={16} />
+                            )}
+                          </button>
+                          <input
+                            type="range"
+                            aria-label={`Volume ${role === "backing" ? "backing track" : "voz alvo"}`}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={s.volumes[role]}
+                            onChange={(e) =>
+                              s.setVolume(role, Number(e.target.value))
+                            }
+                          />
+                          <span className="track-volume">
+                            {s.muted[role]
+                              ? "−∞"
+                              : `${Math.round(s.volumes[role] * 100)}%`}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </section>
+              {s.targetMode === "polyphonic" && <TargetReview studio={s} />}
               <section className="panel roll-panel">
                 <div className="roll-header">
                   <div>
@@ -382,12 +406,20 @@ export default function App() {
                     <div className="roll-legend">
                       <span>
                         <i className="target-key" />
-                        Voz alvo
+                        {s.targetMode === "polyphonic"
+                          ? "Linha selecionada"
+                          : "Voz alvo"}
                       </span>
                       <span>
                         <i className="voice-key" />
                         Sua voz
                       </span>
+                      {s.targetMode === "polyphonic" && (
+                        <span>
+                          <i className="candidate-key" />
+                          Candidatas
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="roll-tools">
@@ -413,7 +445,12 @@ export default function App() {
                   </div>
                 </div>
                 <PianoRoll
-                  track={s.tracks.target}
+                  track={previewTarget}
+                  candidateNotes={
+                    s.targetMode === "polyphonic"
+                      ? s.tracks.target?.notes
+                      : undefined
+                  }
                   time={s.time}
                   live={s.live}
                   windowSeconds={windowSeconds}
@@ -426,7 +463,11 @@ export default function App() {
                       ? "Entrada ativa · cante acompanhando as notas verdes"
                       : "Ative a entrada de áudio para visualizar sua voz"}
                   </span>
-                  <span>A4 = 440 Hz · alvo monofônico</span>
+                  <span>
+                    {s.targetMode === "polyphonic"
+                      ? "Experimental · notas estimadas em centros MIDI"
+                      : "A4 = 440 Hz · alvo monofônico"}
+                  </span>
                 </div>
               </section>
               <section
@@ -452,7 +493,13 @@ export default function App() {
                     {noteName(currentTarget?.midi)}
                   </strong>
                   <small>
-                    {currentTarget ? "No cursor" : "Pausa na melodia"}
+                    {!s.scoringReady
+                      ? s.tracks.target?.analysisMode === "polyphonic"
+                        ? "Revise o alvo para avaliar"
+                        : "Nenhuma nota detectada"
+                      : currentTarget
+                        ? "No cursor"
+                        : "Pausa na melodia"}
                   </small>
                 </div>
                 <div className="stat tuning-stat">
@@ -467,7 +514,9 @@ export default function App() {
                   </strong>
                   <small>
                     {cents === null
-                      ? "Cante durante o alvo"
+                      ? !s.scoringReady
+                        ? "Avaliação indisponível"
+                        : "Cante durante o alvo"
                       : Math.abs(cents) <= s.tolerance
                         ? "Dentro da tolerância"
                         : cents > 0
@@ -490,9 +539,15 @@ export default function App() {
                     <span>{hasScore ? "%" : ""}</span>
                   </strong>
                   <small>
-                    {hasScore
-                      ? `${Math.round(s.stats.coverage)}% de cobertura`
-                      : "Toque e cante para pontuar"}
+                    {s.loopTooShort
+                      ? "Loop curto para avaliar"
+                      : hasScore
+                        ? `${Math.round(s.stats.coverage)}% de cobertura`
+                        : !s.scoringReady
+                          ? s.tracks.target?.analysisMode === "polyphonic"
+                            ? "Revise e confirme o alvo"
+                            : "Troque o alvo ou o tipo de análise"
+                          : "Toque e cante para pontuar"}
                   </small>
                 </div>
                 <button
@@ -516,7 +571,9 @@ export default function App() {
             <div>
               <span className="status-dot" />
               Áudio local<span className="footer-separator">/</span>
-              {s.tracks.target?.pitch.length ?? 0} frames de melodia
+              {s.targetMode === "polyphonic"
+                ? `${s.tracks.target?.notes.length ?? 0} notas candidatas`
+                : `${s.tracks.target?.pitch.length ?? 0} frames de melodia`}
             </div>
             <div>
               <kbd>Espaço</kbd> Play / pause{" "}

@@ -242,6 +242,7 @@ export default function AudioSettings({
           <select
             aria-label="Tolerância de afinação"
             value={s.tolerance}
+            disabled={!s.scoringReady}
             onChange={(e) => s.setTolerance(Number(e.target.value))}
           >
             <option value={25}>Precisa · ±25 cents</option>
@@ -249,10 +250,20 @@ export default function AudioSettings({
             <option value={75}>Ampla · ±75 cents</option>
           </select>
         </label>
-        <p>
-          Acerto é o tempo no alvo dentro da tolerância. Cobertura é quanto do
-          alvo você cantou. Silêncio durante o alvo conta como erro.
-        </p>
+        {!s.scoringReady ? (
+          <p className="score-pending" role="status">
+            {s.targetMode === "polyphonic"
+              ? "Pontuação bloqueada. Selecione uma linha com notas e confirme a revisão acima do gráfico."
+              : "Pontuação indisponível: o alvo precisa ter notas detectadas."}
+          </p>
+        ) : (
+          <p>
+            {s.targetMode === "polyphonic" &&
+              "Avaliação experimental da linha revisada. "}
+            Acerto é o tempo no alvo dentro da tolerância. Cobertura é quanto do
+            alvo você cantou. Silêncio durante o alvo conta como erro.
+          </p>
+        )}
         <div className="attempt-duration">
           <span>Alvo avaliado</span>
           <strong>{s.stats.targetSeconds.toFixed(1)} s</strong>
@@ -260,6 +271,17 @@ export default function AudioSettings({
         <small>
           Voltar, posicionar ou repetir um loop inicia uma nova tentativa.
         </small>
+        <small className="score-timing-note">
+          A avaliação aguarda até {Math.round(s.scoreDelay * 1000)} ms pelo
+          sinal. O final ainda sem captura fica fora do tempo avaliado ao parar
+          ou repetir.
+        </small>
+        {s.loopTooShort && (
+          <p className="warning">
+            Amplie o loop para avaliar: o trecho é menor que a margem de captura
+            e o tempo mínimo de pontuação.
+          </p>
+        )}
       </section>
       <button className="back-to-files" onClick={onOpenImport}>
         <ArrowLeft size={14} />

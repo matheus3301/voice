@@ -6,3 +6,4 @@ test-results/
 playwright-report/
 .openai/site-workflow/
 *.tsbuildinfo
+.DS_Store

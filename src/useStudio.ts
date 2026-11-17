@@ -1,6 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioEngine } from "./audio/engine";
-import { emptyStats, PracticeScorer } from "./practice";
+import {
+  captureEvaluationDelay,
+  emptyStats,
+  evaluatedPosition,
+  PracticeScorer,
+} from "./practice";
+import {
+  canScoreTarget,
+  defaultTargetSelection,
+  isPolyphonic,
+  selectTargetLine,
+} from "./target";
+import type { TargetSelection } from "./target";
 import type {
   AudioDiagnostics,
   AudioTrack,
@@ -8,6 +20,7 @@ import type {
   LoopRegion,
   PitchFrame,
   TrackRole,
+  TargetMode,
 } from "./types";
 
 export function useStudio() {
@@ -20,6 +33,12 @@ export function useStudio() {
     backing: null,
     target: null,
   });
+  const [targetMode, setTargetModeState] = useState<TargetMode>("monophonic");
+  const [targetModeChosen, setTargetModeChosen] = useState(false);
+  const [targetSelection, setTargetSelectionState] = useState<TargetSelection>(
+    defaultTargetSelection,
+  );
+  const [targetReviewed, setTargetReviewed] = useState(false);
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
@@ -45,9 +64,51 @@ export function useStudio() {
   const [latency, setLatencyState] = useState(0);
   const [tolerance, setToleranceState] = useState(50);
   const scorer = useRef(new PracticeScorer());
+  const scoringStart = useRef(0);
   const disposalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const state = useRef({ tracks, latency, tolerance, micActive });
-  state.current = { tracks, latency, tolerance, micActive };
+  const practiceTarget = useMemo(() => {
+    const target = tracks.target;
+    if (!target || !isPolyphonic(target)) return target;
+    return {
+      ...target,
+      ...selectTargetLine(
+        target.notes,
+        target.buffer.duration,
+        targetSelection,
+      ),
+    };
+  }, [tracks.target, targetSelection]);
+  const scoringReady =
+    progress.target === null && canScoreTarget(practiceTarget, targetReviewed);
+  const scoreDelay = captureEvaluationDelay(
+    windowSize,
+    diagnostics?.sampleRate ?? 48000,
+    latency,
+  );
+  const loopTooShort = loop.enabled && loop.end - loop.start < scoreDelay + 0.1;
+  const evaluationAvailable = scoringReady && !loopTooShort;
+  const state = useRef({
+    tracks,
+    latency,
+    tolerance,
+    micActive,
+    practiceTarget,
+    scoringReady,
+    evaluationAvailable,
+    loop,
+    scoreDelay,
+  });
+  state.current = {
+    tracks,
+    latency,
+    tolerance,
+    micActive,
+    practiceTarget,
+    scoringReady,
+    evaluationAvailable,
+    loop,
+    scoreDelay,
+  };
   const scoringArmed = useRef(false);
   const duration = Math.max(
     tracks.backing?.buffer.duration ?? 0,
@@ -55,10 +116,11 @@ export function useStudio() {
   );
   const resetAttempt = useCallback(() => {
     scorer.current.reset();
+    scoringStart.current = engine.getPosition();
     scoringArmed.current = false;
     setStats(emptyStats);
     setLive([]);
-  }, []);
+  }, [engine]);
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     setDevices(await navigator.mediaDevices.enumerateDevices());
@@ -78,7 +140,10 @@ export function useStudio() {
   }, [engine, refreshDevices]);
   useEffect(() => {
     engine.onEnded = () => setPlaying(false);
-    engine.onLoop = resetAttempt;
+    engine.onLoop = () => {
+      resetAttempt();
+      scoringStart.current = state.current.loop.start;
+    };
     let raf = 0,
       last = 0;
     const update = (stamp: number) => {
@@ -89,11 +154,19 @@ export function useStudio() {
         if (
           engine.isPlaying &&
           (state.current.micActive || scoringArmed.current) &&
-          state.current.tracks.target
+          state.current.practiceTarget &&
+          state.current.evaluationAvailable
         ) {
           scoringArmed.current = true;
           setStats(
-            scorer.current.advance(state.current.tracks.target.pitch, position),
+            scorer.current.advance(
+              state.current.practiceTarget.pitch,
+              evaluatedPosition(
+                position,
+                scoringStart.current,
+                state.current.scoreDelay,
+              ),
+            ),
           );
         }
         last = stamp;
@@ -117,14 +190,25 @@ export function useStudio() {
   }, []);
   const loadFile = (role: TrackRole, file: File) =>
     run(async () => {
+      if (role === "target" && !targetModeChosen)
+        throw new Error(
+          "Escolha se o alvo contém uma voz isolada ou várias vozes antes de carregar o arquivo.",
+        );
       setProgress((p) => ({ ...p, [role]: 0 }));
       try {
-        const track = await engine.loadFile(file, role, (n) =>
-          setProgress((p) => ({ ...p, [role]: n })),
+        const track = await engine.loadFile(
+          file,
+          role,
+          (n) => setProgress((p) => ({ ...p, [role]: n })),
+          role === "target" ? targetMode : "monophonic",
         );
         engine.setTrack(role, track);
         engine.setVolume(role, muted[role] ? 0 : volumes[role]);
         setTracks((t) => ({ ...t, [role]: track }));
+        if (role === "target") {
+          setTargetReviewed(false);
+          setTargetModeState(track.analysisMode ?? "monophonic");
+        }
         const freshLoop = {
           start: 0,
           end: Math.min(10, engine.duration),
@@ -151,6 +235,9 @@ export function useStudio() {
           engine.setVolume(role, muted[role] ? 0 : volumes[role]);
         }
         setTracks(next);
+        setTargetModeState("monophonic");
+        setTargetModeChosen(true);
+        setTargetReviewed(false);
         const demoLoop = {
           start: 0,
           end: Math.min(10, next.target.buffer.duration),
@@ -172,11 +259,19 @@ export function useStudio() {
           engine.pause();
           setPlaying(false);
         } else {
+          if (engine.getPosition() >= engine.duration) {
+            engine.seek(0);
+            resetAttempt();
+          }
+          if (state.current.micActive || scoringArmed.current) {
+            scoringStart.current = engine.getPosition();
+            scorer.current.beginSegment(scoringStart.current);
+          }
           await engine.play(engine.getPosition());
           setPlaying(true);
         }
       }),
-    [engine, run],
+    [engine, run, resetAttempt],
   );
   const seek = useCallback(
     (seconds: number) => {
@@ -226,6 +321,7 @@ export function useStudio() {
     if (safe.end <= safe.start) safe.end = Math.min(duration, safe.start + 0.1);
     setLoopState(safe);
     engine.setLoop(safe);
+    resetAttempt();
   };
   const onPitch = useCallback(
     (p: PitchFrame) => {
@@ -242,10 +338,10 @@ export function useStudio() {
           aligned,
         ].slice(-4500),
       );
-      if (s.tracks.target)
+      if (s.practiceTarget && s.evaluationAvailable)
         setStats(
           scorer.current.sample(
-            s.tracks.target.pitch,
+            s.practiceTarget.pitch,
             aligned.time,
             p,
             s.tolerance,
@@ -273,6 +369,10 @@ export function useStudio() {
           setCurrentPitch(null);
         });
         setDiagnostics(d);
+        if (!scoringArmed.current) {
+          scoringStart.current = engine.getPosition();
+          scorer.current.beginSegment(scoringStart.current);
+        }
         setMicActive(true);
         engine.setInputGain(inputGain);
         engine.setMonitor(false, 1);
@@ -312,6 +412,57 @@ export function useStudio() {
     resetAttempt();
   };
   const setOutput = (id: string) => run(() => engine.setOutputDevice(id));
+  const changeTargetMode = (mode: TargetMode) =>
+    run(async () => {
+      setTargetModeChosen(true);
+      if (mode === targetMode && tracks.target?.analysisMode === mode) return;
+      setTargetModeState(mode);
+      setTargetReviewed(false);
+      resetAttempt();
+      const target = tracks.target;
+      if (!target) return;
+      engine.pause();
+      setPlaying(false);
+      setProgress((p) => ({ ...p, target: 0 }));
+      try {
+        const analyzed = await engine.analyzeTrack(target, mode, (n) =>
+          setProgress((p) => ({ ...p, target: n })),
+        );
+        engine.setTrack("target", analyzed);
+        engine.seek(0);
+        setTracks((t) => ({ ...t, target: analyzed }));
+      } catch (error) {
+        setTargetModeState(target.analysisMode ?? "monophonic");
+        throw error;
+      } finally {
+        setProgress((p) => ({ ...p, target: null }));
+      }
+    });
+  const setTargetSelection = (selection: TargetSelection) => {
+    setTargetSelectionState(selection);
+    setTargetReviewed(false);
+    resetAttempt();
+  };
+  const confirmTarget = () => {
+    if (!practiceTarget?.notes.length) return;
+    setTargetReviewed(true);
+    resetAttempt();
+  };
+  const removeBacking = () => {
+    engine.removeTrack("backing");
+    setTracks((t) => ({ ...t, backing: null }));
+    const freshLoop = {
+      start: 0,
+      end: Math.min(10, engine.duration),
+      enabled: false,
+    };
+    engine.setLoop(freshLoop);
+    engine.seek(0);
+    setLoopState(freshLoop);
+    setPlaying(false);
+    resetAttempt();
+  };
+  const cancelAnalysis = () => engine.cancelAnalysis();
   return {
     tracks,
     progress,
@@ -355,5 +506,18 @@ export function useStudio() {
     setLatency,
     setTolerance,
     setOutput,
+    targetMode,
+    targetModeChosen,
+    changeTargetMode,
+    targetSelection,
+    setTargetSelection,
+    targetReviewed,
+    confirmTarget,
+    practiceTarget,
+    scoringReady,
+    cancelAnalysis,
+    removeBacking,
+    scoreDelay,
+    loopTooShort,
   };
 }

@@ -1,4 +1,5 @@
 export type TrackRole = "backing" | "target";
+export type TargetMode = "monophonic" | "polyphonic";
 export interface PitchFrame {
   time: number;
   frequency: number;
@@ -17,6 +18,7 @@ export interface AudioTrack {
   waveform: Float32Array;
   pitch: PitchFrame[];
   notes: NoteSegment[];
+  analysisMode?: TargetMode;
 }
 export interface LiveSample extends PitchFrame {}
 export interface LoopRegion {

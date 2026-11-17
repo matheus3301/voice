@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { PracticeScorer, noteName, pitchAt, intervalName } from "./practice";
+import {
+  captureEvaluationDelay,
+  evaluatedPosition,
+  PracticeScorer,
+  noteName,
+  pitchAt,
+  intervalName,
+} from "./practice";
 import type { PitchFrame } from "./types";
 const frame = (time: number, midi = 69, frequency = 440): PitchFrame => ({
   time,
@@ -9,6 +16,34 @@ const frame = (time: number, midi = 69, frequency = 440): PitchFrame => ({
   rms: 0.2,
 });
 describe("musical feedback", () => {
+  it("preserves pause totals without filling the excluded tail when resumed", () => {
+    const s = new PracticeScorer(),
+      target = Array.from({ length: 101 }, (_, i) => frame(i * 0.02));
+    s.advance(target, 0);
+    s.sample(target, 0, frame(0), 50);
+    s.beginSegment(1);
+    const result = s.advance(target, 1);
+    expect(result.targetSeconds).toBeCloseTo(0.04);
+    expect(result.score).toBe(50);
+  });
+  it("reserves capture delay without evaluating music before seek or loop start", () => {
+    const delay = captureEvaluationDelay(4096, 48000, 100);
+    expect(delay).toBeCloseTo(0.2226667);
+    expect(evaluatedPosition(10.05, 10, delay)).toBe(10);
+    expect(evaluatedPosition(4.05, 4, delay)).toBe(4);
+    expect(evaluatedPosition(5, 4, delay)).toBeCloseTo(5 - delay);
+  });
+  it("does not penalize unreceived capture tail at a transport boundary", () => {
+    const s = new PracticeScorer(),
+      target = Array.from({ length: 51 }, (_, i) => frame(i * 0.02));
+    for (let time = 0; time < 1; time += 0.02) {
+      s.advance(target, evaluatedPosition(time, 0, 0.2));
+      if (time >= 0.12) s.sample(target, time - 0.12, frame(time - 0.12), 50);
+    }
+    const result = s.advance(target, evaluatedPosition(1, 0, 0.2));
+    expect(result.score).toBe(100);
+    expect(result.targetSeconds).toBeLessThan(1);
+  });
   it("uses equal temperament, octave and directed interval labels", () => {
     expect(noteName(69)).toBe("A4");
     expect(noteName(60)).toBe("C4");
