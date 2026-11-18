@@ -1,0 +1,21 @@
+name: Native
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.100.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo test --no-default-features --lib
+      - run: xcodebuild -downloadComponent MetalToolchain
+      - run: cargo check --bin voice
+      - run: cargo clippy --all-targets -- -D warnings

@@ -1,65 +1,67 @@
-# Estúdio vocal
+# Voice
 
-V0.2 de uma bancada web para praticar canto com uma faixa alvo e acompanhamento opcional. Arraste seus arquivos ou abra a demonstração sintetizada de 24 segundos.
+A local vocal practice application for macOS, written in Rust with GPUI.
 
-A voz alvo vira um piano roll. A voz captada aparece por cima em âmbar, com nota, frequência, desvio em cents, intervalo seguinte e pontuação. Mixer com volumes/mute separados, seek, loop A–B e atalhos de transporte.
+Import a target recording, optionally add a backing track, choose an audio input, and follow the target notes while singing. Projects save as self-contained `.voice` files with original audio, analysis, settings and practice history.
 
-## Rodar
+## Run
 
-Node.js 22.12+ e npm.
-
-```sh
-npm ci
-npm run dev
-```
-
-Abra o endereço indicado pelo Vite. Microfone requer localhost ou HTTPS. Para verificar e gerar o site estático:
+Requires macOS, Xcode with the Metal toolchain, and Rust 1.100.0. The pinned toolchain is installed automatically by rustup when available.
 
 ```sh
-npm test
-npm run build
-npm run preview
+# If Xcode reports a missing Metal compiler:
+xcodebuild -downloadComponent MetalToolchain
+
+scripts/bundle.sh --debug
+open dist/Voice.app
 ```
 
-O build fica em `dist/`. Nenhum servidor de aplicação, banco ou chave de API é necessário. A configuração de hospedagem privada do Sites está em `.openai/hosting.json`.
+For an optimized local build, run `scripts/bundle.sh` without `--debug`. No Node, Python or network connection is needed to run the finished application. Python 3 is used by the packaging script to read Cargo metadata, not by the app. The bundled polyphonic model and font are embedded in the executable. A build downloads dependencies and the native ONNX runtime, which is statically linked on the validated Apple Silicon configuration.
 
-## Uso
+## Use
 
-1. Escolha o conteúdo do alvo: uma voz isolada ou várias vozes/notas. Carregue a faixa alvo. A backing track é opcional; pode ser removida. Quando presentes, os dois arquivos começam em 00:00; exporte stems com a mesma origem temporal.
-2. Abra a bancada. No modo polifônico experimental, confira as candidatas cinza, escolha uma linha por registro/critério agudo ou grave, ouça e confirme a linha verde antes de pontuar. Essa seleção não identifica naipes nem separa o áudio. Clique na forma de onda ou no gráfico para escolher o ponto de início.
-3. Ative a entrada e permita o microfone. Escolha a interface e um dos canais que o navegador disponibilizar.
-4. Ajuste os volumes. O retorno de microfone começa desligado; use fones se precisar ligá-lo, ou o retorno direto da interface.
-5. Use Espaço para play/pause e Enter para voltar ao início. Atalhos não interceptam campos nem botões. A/B definem o trecho repetido; as setas também posicionam os gráficos.
+- Import a target or drop an audio file into the window. Drop two files to use the first as target and the second as backing. Import or remove the optional backing in Mix.
+- Select **One voice** for an isolated monophonic recording. Select **Polyphonic** for simultaneous voices/notes. In Target, choose a register and highest/lowest line, listen and confirm the reviewed line before scoring.
+- Open Audio, choose devices, an input channel and requested buffer, then apply. Enable the microphone explicitly. Monitoring starts off; use headphones when enabling it.
+- Click the pitch view or waveform to seek. Click A and B at the desired cursor positions to set a loop. Adjust the independent gains and mutes in Mix.
+- Space plays/pauses; Enter returns to the beginning; arrows seek one second; L toggles looping. Cmd+I imports, Cmd+O opens, Cmd+S saves, Cmd+Shift+S saves as, and Cmd+N starts a new project. Cmd+1–4 opens Mix, Target, Audio and History; Cmd+/ shows shortcuts.
+- Save before closing to retain practice history. Reopening a `.voice` file uses its packaged originals and cached analysis, even if the imported source files moved. Monitoring is disabled again on open.
 
-O acerto representa o tempo de alvo dentro da tolerância selecionada (25, 50 ou 75 cents). Cobertura representa presença de voz nesse tempo. Silêncio no alvo não pontua; silêncio do cantor durante o alvo conta como erro. Uma nota na oitava errada não é acerto. Seek, troca de faixa, loop e ajuste da tolerância/compensação reiniciam a tentativa. Mudar a seleção polifônica também invalida a revisão. A avaliação reserva a janela/compensação de captura e 80 ms de processamento antes de contar ausência como erro; a cauda sem captura ao parar ou repetir não é avaliada. Pause/resume preserva os totais e inicia um novo segmento sem avaliar o intervalo excluído. O painel informa tempo efetivamente avaliado e margem; loops menores que a margem mais 100 ms não pontuam.
+There are no fixed audio-duration or file-size caps. Playback and analysis decode bounded blocks. Metadata grows with duration, and saving/opening needs sufficient disk space. Full albums take longer to analyze. Import analysis can be canceled without replacing the current target.
 
-## Limites da v0
+## Accuracy and limits
 
-- YIN no microfone e em alvos de uma voz, aproximadamente C2–D6 (65–1200 Hz), referência A4=440 Hz. Bleed, reverb e harmônicos fortes podem produzir erros ou saltos de oitava.
-- Basic Pitch local estima notas simultâneas no modo polifônico experimental. Não recupera identidade de cantor/naipes nem garante todas as notas. A linha revisada usa centros de notas MIDI, não a afinação contínua exata de cada cantor da gravação. Apenas C2–D6 entra na avaliação; outras candidatas continuam visuais.
-- A análise neural usa Workers descartáveis em blocos de 20 segundos, até 0,5 s de contexto por lado, timeout de 120 s por bloco e cancelamento. Arquivos longos podem levar minutos. Pesos e licença do modelo estão em public/models/basic-pitch; não há download de modelo de terceiros durante o uso.
-- O benchmark real atual mediu RPA ±50 cents de 84,56% em 40 clips Vocadito. Em três misturas artificiais de duas vozes, Basic Pitch obteve F1 de 67,89%. Não é transcrição profissional nem validação com coro de vários naipes gravado junto.
-- Até 80 MiB e 15 minutos por arquivo. WAV, MP3, M4A, OGG, AAC e FLAC dependem dos codecs do navegador; o app informa erros de decodificação.
-- Não há upload para servidor: arquivos são decodificados e analisados localmente em memória. Recarregar a página exige importar novamente. Não há gravação, histórico ou separação de stems.
-- Seleção de entrada/canais usa somente o stream exposto pelo navegador. Não existe controle web do buffer ASIO/CoreAudio: configure-o no driver/sistema. A janela de análise ajusta detecção, não o buffer do driver.
-- Compensação manual aplica-se ao relógio da captura antes do mapeamento do loop. Valores positivos alinham uma entrada atrasada. A janela do detector já é descontada pelo timestamp do centro da captura. Latência de grafo/saída é informada pelo navegador e não mede o percurso completo do microfone.
-- Seleção de saída depende de `AudioContext.setSinkId`; quando não há suporte, vale a saída do sistema. Chrome/Edge desktop recentes são o caminho principal para interfaces de áudio; Safari/Firefox podem expor menos controles.
+The target melody is an estimate. Polyphonic transcription does not identify singers or choir sections and does not separate stems. Selecting a practice line requires human review; note centers are used for polyphonic scoring. The live microphone detector expects one voice. Audio driver requests may fall back; Audio shows observed callback sizes. Timing correction is manual, not a physical round-trip measurement. Playback rate conversion currently uses streaming linear interpolation; matched-rate playback is unchanged.
 
-## Organização
+See [native analysis](docs/NATIVE_ANALYSIS.md), [native benchmark](docs/NATIVE_BENCHMARK.md), [validation](docs/VALIDATION.md), [project format](docs/VOICE_FORMAT.md) and [specification](docs/SPEC.md) for evidence and boundaries.
 
-- `src/audio/engine.ts`: relógio único, fontes sincronizadas, loop, mixer e lifecycle da entrada.
-- `src/audio/pitch.ts`: detector YIN, resampling, segmentos e waveform.
-- `src/audio/*.worker.ts`: análise de arquivos e pitch ao vivo fora da UI.
-- `public/pitch-capture.js`: AudioWorklet, ring buffer e timestamps da captura.
-- `src/useStudio.ts`: estado e ações da sessão.
-- `src/practice.ts`: pontuação, busca temporal e apresentação musical.
-- `src/audio/polyphonic*`: inferência neural, ciclo de vida dos Workers, chunks e candidatos simultâneos.
-- `src/target.ts`: escolha de uma linha de estudo, limite avaliável e gate de revisão.
-- `src/components/`: piano roll e waveform em canvas, importação, revisão do alvo e configurações de áudio.
-- `src/App.tsx`: fluxo de importação, transporte, mixer, entrada e feedback.
+## Development
 
-[Spec](docs/SPEC.md), [contrato de áudio](src/audio/README.md) e [validação](docs/VALIDATION.md).
+```sh
+cargo fmt --all --check
+cargo test --no-default-features --lib
+cargo check --bin voice
+cargo clippy --all-targets -- -D warnings
+cargo build --bin voice
+```
 
-## Pesquisa e evidências
+Source responsibilities:
 
-[Mercado: 12 produtos](docs/RESEARCH-MARKET.md), [papers, modelos e protocolo](docs/RESEARCH-AUDIO.md), [benchmark monofônico com 40 clips](docs/BENCHMARK.md), [benchmark polifônico exploratório](docs/BENCHMARK_POLYPHONIC.md). Os scripts reproduzíveis estão em `scripts/`; os áudios dos corpora ficam fora do repositório.
+| Module | Responsibility |
+| --- | --- |
+| `src/desktop/` | GPUI presentation, commands and background jobs |
+| `src/audio.rs` | Native devices, transport, mixing, capture and monitoring |
+| `src/audio_controller.rs` | Hardware owner thread and nonblocking UI control |
+| `src/media.rs` | Seekable bounded decoding |
+| `src/analysis.rs` | YIN and local Basic Pitch inference |
+| `src/scoring.rs` | Duration-based scoring and capture tail |
+| `src/project.rs` | Atomic ZIP64 persistence and safe extraction |
+| `src/model.rs` | Versioned portable document |
+
+All active code, UI text, comments and documentation are English. Commits use Conventional Commits in English.
+
+## Research archive
+
+The previous web application, market research, papers, benchmark reports and scripts are preserved unchanged under [`Research/web-v0.2/`](Research/web-v0.2/). This is a historical snapshot, not a runtime dependency of the desktop application. Historical benchmark results are not automatically evidence for a native implementation.
+
+Third-party licenses and model provenance are included under `assets/`.

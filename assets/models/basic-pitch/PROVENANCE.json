@@ -1,0 +1,49 @@
+{
+  "project": "spotify/basic-pitch",
+  "commit": "fa5997af0a8210982619003269994a1be25eddf3",
+  "license": "Apache-2.0",
+  "retrieved": "2026-11-17",
+  "files": [
+    {
+      "file": "nmp.onnx",
+      "source": "https://raw.githubusercontent.com/spotify/basic-pitch/fa5997af0a8210982619003269994a1be25eddf3/basic_pitch/saved_models/icassp_2022/nmp.onnx",
+      "bytes": 230444,
+      "sha256": "2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec"
+    },
+    {
+      "file": "LICENSE",
+      "source": "https://raw.githubusercontent.com/spotify/basic-pitch/fa5997af0a8210982619003269994a1be25eddf3/LICENSE",
+      "bytes": 11384,
+      "sha256": "929c910bae2152fa87199a5d0660e09263419b7eee6d4b301d05ee2aaf211c37"
+    },
+    {
+      "file": "ONNXRUNTIME-LICENSE",
+      "source_archive_member": "onnxruntime/LICENSE",
+      "bytes": 1073,
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    {
+      "file": "ONNXRUNTIME-THIRD-PARTY-NOTICES.txt",
+      "source_archive_member": "onnxruntime/ThirdPartyNotices.txt",
+      "bytes": 326866,
+      "sha256": "e9e90971a8e75a9a8ac0c6412e29c1202d079998389915aa485f46c816c3b4cc"
+    }
+  ],
+  "runtime": {
+    "crate": "ort =2.0.0-rc.10",
+    "onnx_runtime": "1.22.0",
+    "target": "aarch64-apple-darwin",
+    "distribution": "https://cdn.pyke.io/0/pyke:ort-rs/ms@1.22.0/aarch64-apple-darwin.tgz",
+    "distribution_sha256": "00fbfd6f08bac2a4e28c66723af900d58d1b4b1c73efba6290637cd3019883d5",
+    "verified_content": "onnxruntime/lib/libonnxruntime.a",
+    "source_manifest": "https://raw.githubusercontent.com/pykeio/ort/v2.0.0-rc.10/ort-sys/dist.txt",
+    "license": "MIT",
+    "notices_source": {
+      "publisher": "Microsoft, onnxruntime 1.22.0 distribution published to PyPI",
+      "metadata": "https://pypi.org/pypi/onnxruntime/1.22.0/json",
+      "artifact": "https://files.pythonhosted.org/packages/7a/08/c008711d1b92ff1272f4fea0fbee57723171f161d42e5c680625535280af/onnxruntime-1.22.0-cp311-cp311-macosx_13_0_universal2.whl",
+      "artifact_sha256": "8d6725c5b9a681d8fe72f2960c191a96c256367887d076b08466f52b4e0991df",
+      "note": "Only license/notices were extracted at build preparation; no Python runtime or wheel is used by the application."
+    }
+  }
+}
