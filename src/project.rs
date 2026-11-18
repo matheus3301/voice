@@ -335,7 +335,7 @@ fn validate_track(track: &MediaTrack, role: TrackRole) -> Result<()> {
         ensure!(
             analysis.selection.min_midi <= analysis.selection.max_midi
                 && analysis.selection.max_midi <= 127,
-            "Invalid target selection MIDI range"
+            "Invalid vocal reference note range"
         );
         validate_frames(&analysis.frames, 0.0, track.metadata.duration)?;
         for note in &analysis.notes {
@@ -376,8 +376,8 @@ fn validate_document(document: &VoiceProject) -> Result<()> {
         }
     }
     let settings = &document.settings;
-    nonnegative(settings.target_gain as f64, "Target gain")?;
-    nonnegative(settings.backing_gain as f64, "Backing gain")?;
+    nonnegative(settings.target_gain as f64, "Vocal reference gain")?;
+    nonnegative(settings.backing_gain as f64, "Accompaniment gain")?;
     nonnegative(settings.audio.input_gain as f64, "Input gain")?;
     finite(settings.audio.latency_ms as f64, "Latency compensation")?;
     finite(settings.tolerance_cents as f64, "Pitch tolerance")?;
@@ -443,11 +443,15 @@ mod tests {
     }
 
     fn track(role: TrackRole, filename: &str) -> MediaTrack {
+        let fixture_role = match role {
+            TrackRole::Target => "Target",
+            TrackRole::Backing => "Backing",
+        };
         MediaTrack {
-            id: format!("test-{}", role.label()),
+            id: format!("test-{fixture_role}"),
             role,
             filename: filename.into(),
-            archive_path: format!("media/{}/{filename}", role.label()),
+            archive_path: format!("media/{fixture_role}/{filename}"),
             metadata: AudioMetadata {
                 duration: 2.0,
                 sample_rate: 48_000,

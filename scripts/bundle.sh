@@ -4,21 +4,24 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: scripts/bundle.sh [--debug] [--no-build] [--output PATH.app]
+Usage: scripts/bundle.sh [--debug] [--no-build] [--preview] [--output PATH.app]
 
 Build Voice.app for the current Mac. Release is the default profile.
 Use --debug for a development build or --no-build to package an existing binary.
+Use --preview for an isolated app identity that preserves a running Voice session.
 The default output is dist/Voice.app. Bundles are signed ad hoc for local use.
 EOF
 }
 
 profile=release
 build=true
+preview=false
 output=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --debug) profile=debug; shift ;;
         --no-build) build=false; shift ;;
+        --preview) preview=true; shift ;;
         --output)
             [[ $# -ge 2 ]] || { usage >&2; exit 2; }
             output=$2
@@ -56,7 +59,11 @@ fi
 binary="$binary_dir/voice"
 [[ -f "$binary" ]] || { printf 'Built executable not found: %s\n' "$binary" >&2; exit 1; }
 
-output=${output:-"$repo_root/dist/Voice.app"}
+if [[ "$preview" == true ]]; then
+    output=${output:-"$repo_root/build/Voice Preview.app"}
+else
+    output=${output:-"$repo_root/dist/Voice.app"}
+fi
 case "$output" in *.app) ;; *) printf 'Output must have an .app extension.\n' >&2; exit 2 ;; esac
 output_parent=$(dirname -- "$output")
 mkdir -p -- "$output_parent"
@@ -71,6 +78,13 @@ chmod 755 "$bundle/Contents/MacOS/voice"
 cp "$repo_root/macOS/Info.plist" "$bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $version" "$bundle/Contents/Info.plist"
+if [[ "$preview" == true ]]; then
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier dev.mmonteiro.voice.preview' "$bundle/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleName Voice Preview' "$bundle/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Voice Preview' "$bundle/Contents/Info.plist"
+    # A review build must not become the owner of the user's project file type.
+    /usr/libexec/PlistBuddy -c 'Delete :CFBundleDocumentTypes' "$bundle/Contents/Info.plist"
+fi
 if [[ -d "$repo_root/assets" ]]; then
     /usr/bin/ditto "$repo_root/assets" "$bundle/Contents/Resources/assets"
 fi

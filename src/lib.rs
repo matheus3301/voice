@@ -6,3 +6,5 @@ pub mod project;
 pub mod scoring;
 
 pub mod audio_controller;
+
+pub mod document_lifecycle;

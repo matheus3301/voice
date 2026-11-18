@@ -21,8 +21,8 @@ pub enum TrackRole {
 impl TrackRole {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Target => "Target",
-            Self::Backing => "Backing",
+            Self::Target => "Vocal reference",
+            Self::Backing => "Accompaniment",
         }
     }
 }

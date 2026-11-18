@@ -1,11 +1,7 @@
+use super::theme::Theme;
 use gpui::{App, Bounds, PathBuilder, Pixels, TextRun, Window, font, point, px, quad, rgb, size};
 use std::sync::Arc;
 use voice::model::{AnalysisMode, Note, PitchFrame, TrackAnalysis};
-
-pub const MINT: u32 = 0x9ddcbb;
-pub const AMBER: u32 = 0xf2c17c;
-pub const MUTED: u32 = 0x78817e;
-pub const EDGE: u32 = 0x29312e;
 
 pub fn note_name(midi: f32) -> String {
     let n = midi.round() as i32;
@@ -53,7 +49,7 @@ fn text(
 ) {
     let run = TextRun {
         len: label.len(),
-        font: font("JetBrains Mono"),
+        font: font(".SystemUIFont"),
         color: rgb(color).into(),
         background_color: None,
         underline: None,
@@ -77,8 +73,8 @@ pub struct RollData {
     pub max_note_duration: f64,
 }
 
-pub const LABEL_WIDTH: f32 = 62.;
-pub const RULER_HEIGHT: f32 = 32.;
+pub const LABEL_WIDTH: f32 = 54.;
+pub const RULER_HEIGHT: f32 = 28.;
 
 fn visible_notes(
     notes: &[Note],
@@ -94,6 +90,7 @@ fn visible_notes(
 }
 
 pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, cx: &mut App) {
+    let theme = Theme::for_window(window);
     let bx: f32 = bounds.origin.x.into();
     let by: f32 = bounds.origin.y.into();
     let bw: f32 = bounds.size.width.into();
@@ -149,7 +146,7 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
     let tx = |t: f64| x0 + ((t - data.start) / data.seconds) as f32 * width;
     let ny = |m: f32| top + (max - m + 0.5) * row;
 
-    rect(window, bx, by, bw, bh, 0x141a17, 0.);
+    rect(window, bx, by, bw, bh, theme.canvas, 0.);
     for n in min as i32..=max as i32 {
         let y = ny(n as f32) - row / 2.;
         let black = [1, 3, 6, 8, 10].contains(&n.rem_euclid(12));
@@ -159,7 +156,11 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
             y,
             width,
             row,
-            if black { 0x141a17 } else { 0x181f1b },
+            if black {
+                theme.canvas
+            } else {
+                theme.canvas_alt
+            },
             0.,
         );
         rect(
@@ -168,7 +169,7 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
             y,
             LABEL_WIDTH - 1.,
             row - 1.,
-            if black { 0x171d1a } else { 0x232c26 },
+            if black { theme.black_key } else { theme.key },
             0.,
         );
         if row >= 12. || n.rem_euclid(12) == 0 {
@@ -178,7 +179,11 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
                 note_name(n as f32),
                 bx + 14.,
                 y + (row - 13.) / 2.,
-                if n.rem_euclid(12) == 0 { MINT } else { MUTED },
+                if n.rem_euclid(12) == 0 {
+                    theme.text
+                } else {
+                    theme.secondary
+                },
                 11.,
             );
         }
@@ -189,9 +194,9 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
             width,
             1.,
             if n.rem_euclid(12) == 0 {
-                0x303e34
+                theme.octave_grid
             } else {
-                0x202923
+                theme.grid
             },
             0.,
         );
@@ -206,14 +211,14 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
     let mut t = (data.start / step).ceil() * step;
     while t <= end {
         let x = tx(t);
-        rect(window, x, top, 1., height, EDGE, 0.);
-        text(window, cx, clock(t), x + 6., by + 8., MUTED, 10.);
+        rect(window, x, top, 1., height, theme.grid, 0.);
+        text(window, cx, clock(t), x + 6., by + 6., theme.secondary, 11.);
         t += step;
     }
     if let Some((a, b)) = data.loop_range {
         for t in [a, b] {
             if t >= data.start && t <= end {
-                rect(window, tx(t), by, 1., bh, 0x766b50, 0.);
+                rect(window, tx(t), by, 1., bh, theme.secondary, 0.);
             }
         }
     }
@@ -227,7 +232,7 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
                 ny(n.midi) - row * 0.3,
                 (right - x).max(2.),
                 row * 0.6,
-                0x3c4740,
+                theme.candidate,
                 2.,
             );
         }
@@ -241,8 +246,8 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
             ny(n.midi) - row * 0.29,
             (right - x).max(2.),
             (row * 0.58).max(4.),
-            MINT,
-            2.,
+            theme.note,
+            3.,
         );
         if right - x > 40. && row > 17. {
             text(
@@ -251,7 +256,7 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
                 note_name(n.midi),
                 x + 7.,
                 ny(n.midi) - 6.,
-                0x19291f,
+                theme.note_text,
                 10.,
             );
         }
@@ -263,17 +268,41 @@ pub fn paint_roll(bounds: Bounds<Pixels>, data: &RollData, window: &mut Window, 
             (min, max),
             &tx,
             &ny,
-            (MINT, 2.),
+            (theme.accent, 1.5),
             window,
         );
     }
-    pitch_path(&data.trace, data, (min, max), &tx, &ny, (AMBER, 3.), window);
+    pitch_path(
+        &data.trace,
+        data,
+        (min, max),
+        &tx,
+        &ny,
+        (theme.live, 2.5),
+        window,
+    );
     if data.cursor >= data.start && data.cursor <= end {
         let x = tx(data.cursor);
-        rect(window, x, by, 1.5, bh, 0xf0eee2, 0.);
-        rect(window, x - 3., by + RULER_HEIGHT - 5., 7., 5., 0xf0eee2, 1.);
+        rect(window, x, by, 1.5, bh, theme.cursor, 0.);
+        rect(
+            window,
+            x - 3.,
+            by + RULER_HEIGHT - 5.,
+            7.,
+            5.,
+            theme.cursor,
+            1.,
+        );
     }
-    rect(window, bx, by + RULER_HEIGHT - 1., bw, 1., EDGE, 0.);
+    rect(
+        window,
+        bx,
+        by + RULER_HEIGHT - 1.,
+        bw,
+        1.,
+        theme.separator,
+        0.,
+    );
 }
 
 fn pitch_path(
@@ -327,7 +356,8 @@ pub fn paint_overview(
     let y: f32 = bounds.origin.y.into();
     let w: f32 = bounds.size.width.into();
     let h: f32 = bounds.size.height.into();
-    rect(window, x, y, w, h, 0x161d19, 0.);
+    let theme = Theme::for_window(window);
+    rect(window, x, y, w, h, theme.canvas_alt, 0.);
     let duration = duration.max(0.001);
     let bins = w.ceil() as usize;
     let mut levels = vec![0_f32; bins];
@@ -345,20 +375,20 @@ pub fn paint_overview(
             y + h / 2. - a,
             1.,
             (a * 2.).max(1.),
-            0x4d6656,
+            theme.waveform,
             0.,
         );
     }
     let a = x + (view.0 / duration) as f32 * w;
     let b = x + (view.1.min(duration) / duration) as f32 * w;
-    rect(window, a, y, (b - a).max(1.), 2., MINT, 0.);
+    rect(window, a, y, (b - a).max(1.), 2., theme.accent, 0.);
     rect(
         window,
         x + (cursor / duration) as f32 * w,
         y,
         1.5,
         h,
-        0xefece0,
+        theme.cursor,
         0.,
     );
 }

@@ -23,4 +23,5 @@ jobs:
           fi
           xcrun --sdk macosx metal -v
       - run: cargo check --bin voice
+      - run: cargo test --bin voice permission_tests
       - run: cargo clippy --all-targets -- -D warnings

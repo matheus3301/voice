@@ -1,9 +1,16 @@
+mod application;
+use application::install_menus;
+pub use application::run;
+mod platform;
 mod roll;
+mod settings;
+mod theme;
 mod views;
 
 use gpui::{
-    App, Application, Bounds, Context, FocusHandle, KeyBinding, PathPromptOptions, PromptLevel,
-    Timer, Window, WindowBounds, WindowOptions, actions, prelude::*, px, size,
+    App, Application, Bounds, Context, FocusHandle, Global, KeyBinding, Menu, MenuItem,
+    PromptLevel, SystemMenuType, Timer, Window, WindowBounds, WindowHandle, WindowOptions, actions,
+    prelude::*, px, size,
 };
 use std::{
     collections::VecDeque,
@@ -18,6 +25,7 @@ use voice::{
     analysis,
     audio::DeviceInventory,
     audio_controller::AudioController,
+    document_lifecycle::{DocumentIntent, DocumentLifecycle, DocumentStep, SaveChoice},
     media,
     model::*,
     project::{self, ProjectWorkspace},
@@ -43,7 +51,23 @@ actions!(
         ShowTarget,
         ShowAudio,
         ShowHistory,
-        ShowHelp
+        ShowHelp,
+        ImportAccompaniment,
+        ToggleMicrophone,
+        ToggleMonitoring,
+        CloseDocument,
+        AboutVoice,
+        HideVoice,
+        HideOthers,
+        ShowAll,
+        MinimizeWindow,
+        ZoomWindow,
+        EditUndo,
+        EditRedo,
+        EditCut,
+        EditCopy,
+        EditPaste,
+        EditSelectAll
     ]
 );
 
@@ -55,6 +79,26 @@ enum Panel {
     History,
     Help,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MicrophoneRequestOutcome {
+    None,
+    Start,
+    Explain,
+}
+fn microphone_request_outcome(
+    wanted: bool,
+    granted: bool,
+    authorization: platform::MicrophoneAuthorization,
+) -> MicrophoneRequestOutcome {
+    if !wanted {
+        MicrophoneRequestOutcome::None
+    } else if granted && authorization == platform::MicrophoneAuthorization::Authorized {
+        MicrophoneRequestOutcome::Start
+    } else {
+        MicrophoneRequestOutcome::Explain
+    }
+}
+
 enum JobResult {
     Imported {
         role: TrackRole,
@@ -111,6 +155,17 @@ pub struct VoiceApp {
     loop_epoch: u64,
     was_playing: bool,
     max_note_duration: f64,
+    microphone_authorization: platform::MicrophoneAuthorization,
+    permission_pending: bool,
+    microphone_requested: bool,
+    microphone_explanation_pending: bool,
+    lifecycle: DocumentLifecycle,
+    deferred_document_intent: Option<DocumentIntent>,
+    native_dialog_open: bool,
+    deferred_document_step: Option<DocumentStep>,
+    native_document_state: Option<(Option<PathBuf>, bool, String)>,
+    audio_settings_window: Option<WindowHandle<settings::AudioSettingsWindow>>,
+    menus_need_refresh: bool,
 }
 
 impl VoiceApp {
@@ -127,6 +182,22 @@ impl VoiceApp {
         let devices = DeviceInventory::default();
         let focus = cx.focus_handle();
         focus.focus(window);
+        cx.observe_window_activation(window, |app, window, cx| {
+            app.microphone_authorization = platform::microphone_authorization();
+            if app.microphone_authorization != platform::MicrophoneAuthorization::Authorized
+                && app.input_running
+            {
+                app.stop_input();
+            }
+            app.sync_document_chrome(window);
+            cx.notify();
+        })
+        .detach();
+        cx.observe_window_appearance(window, |_, window, cx| {
+            window.refresh();
+            cx.notify();
+        })
+        .detach();
         cx.spawn_in(window, async move |this, cx| {
             loop {
                 Timer::after(Duration::from_millis(33)).await;
@@ -135,14 +206,23 @@ impl VoiceApp {
                     let animate = app.playing()
                         || app.was_playing
                         || app.input_pending
+                        || app.microphone_explanation_pending
                         || app.play_pending
                         || app.audio_starting
                         || app.audio_configuring
                         || app.input_running
                         || app.busy.is_some()
                         || !app.rx.is_empty()
-                        || !app.open_requests.is_empty();
+                        || !app.open_requests.is_empty()
+                        || app.deferred_document_step.is_some()
+                        || app.deferred_document_intent.is_some();
                     let changed = app.tick();
+                    app.advance_document_lifecycle(window, cx);
+                    app.sync_document_chrome(window);
+                    if app.menus_need_refresh {
+                        install_menus(cx);
+                        app.menus_need_refresh = false;
+                    }
                     if animate || changed {
                         window.refresh();
                         if was_busy && app.busy.is_none() {
@@ -200,6 +280,17 @@ impl VoiceApp {
             loop_epoch: 0,
             was_playing: false,
             max_note_duration: 0.,
+            microphone_authorization: platform::microphone_authorization(),
+            permission_pending: false,
+            microphone_requested: false,
+            microphone_explanation_pending: false,
+            lifecycle: DocumentLifecycle::default(),
+            deferred_document_intent: None,
+            native_dialog_open: false,
+            deferred_document_step: None,
+            native_document_state: None,
+            audio_settings_window: None,
+            menus_need_refresh: false,
         }
     }
     fn doc(&self) -> &VoiceProject {
@@ -342,6 +433,10 @@ impl VoiceApp {
                     self.pause();
                     self.stop_input();
                     self.workspace = *workspace;
+                    if let Some(path) = &self.workspace.file_path {
+                        platform::note_recent_document(path);
+                        self.menus_need_refresh = true;
+                    }
                     self.workspace.document.transport.visible_seconds =
                         self.doc().transport.visible_seconds.clamp(3., 120.);
                     self.workspace.document.settings.audio.monitor = false;
@@ -372,10 +467,27 @@ impl VoiceApp {
                     if revision == self.revision {
                         self.dirty = false;
                     }
+                    if let Some(name) = self
+                        .workspace
+                        .file_path
+                        .as_ref()
+                        .and_then(|p| p.file_stem())
+                    {
+                        self.workspace.document.title = name.to_string_lossy().into_owned();
+                    }
+                    platform::note_recent_document(
+                        self.workspace
+                            .file_path
+                            .as_ref()
+                            .expect("A saved project has a path"),
+                    );
+                    self.menus_need_refresh = true;
+                    self.deferred_document_step = Some(self.lifecycle.saved(true, self.dirty));
                     self.error = false;
                     self.notice = Some("Project saved.".into());
                 }
                 JobResult::Failed(error) => {
+                    self.deferred_document_step = Some(self.lifecycle.saved(false, self.dirty));
                     self.pending_backing = None;
                     self.fail(error);
                 }
@@ -414,7 +526,7 @@ impl VoiceApp {
             self.input_running = false;
             self.workspace.document.settings.audio.monitor = false;
             self.finish_take();
-            self.fail("Microphone disconnected. Open Audio to reconnect.");
+            self.fail("Microphone disconnected. Open Audio Settings to reconnect.");
         }
         for frame in frames {
             self.live = Some(frame);
@@ -539,7 +651,7 @@ impl VoiceApp {
         match self.engine.as_ref().map(|e| e.play(self.cursor)) {
             Some(Ok(())) => self.play_pending = true,
             Some(Err(e)) => self.fail(format!("Cannot play: {e:#}")),
-            None => self.fail("No output device is available. Open Audio to retry."),
+            None => self.fail("No output device is available. Open Audio Settings to retry."),
         }
     }
     fn seek(&mut self, time: f64) {
@@ -626,31 +738,73 @@ impl VoiceApp {
             let _ = tx.send(result.unwrap_or_else(|e| JobResult::Failed(format!("{e:#}"))));
         });
     }
-    fn import_drop(&mut self, paths: &[PathBuf]) {
-        if self.busy.is_some() {
+    fn import_drop(&mut self, paths: &[PathBuf], window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy.is_some() || self.native_dialog_open {
             return;
         }
         if let Some(path) = paths.first() {
             self.pending_backing = paths.get(1).cloned();
-            self.import_path(TrackRole::Target, path.clone());
+            self.choose_reference_import_mode(path.clone(), window, cx);
         }
     }
-    fn choose_import(&mut self, role: TrackRole, cx: &mut Context<Self>) {
-        if self.busy.is_some() {
+    fn choose_reference_import_mode(
+        &mut self,
+        path: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.native_dialog_open = true;
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        let message = format!("What does “{name}” contain?");
+        let answer=window.prompt(PromptLevel::Info,&message,Some("Choose Several Voices or Notes for layered harmony vocals or chords. This helps Voice find the vocal part you want to learn."),&["One Voice","Several Voices or Notes","Cancel"],cx);
+        cx.spawn_in(window, async move |this, cx| {
+            let response = answer.await.ok();
+            let _ = this.update_in(cx, |app, window, cx| {
+                app.native_dialog_open = false;
+                match response {
+                    Some(0) => {
+                        app.mode = AnalysisMode::Monophonic;
+                        app.import_path(TrackRole::Target, path);
+                    }
+                    Some(1) => {
+                        app.mode = AnalysisMode::Polyphonic;
+                        app.import_path(TrackRole::Target, path);
+                    }
+                    _ => app.pending_backing = None,
+                }
+                app.focus.focus(window);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+    fn choose_import(&mut self, role: TrackRole, window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy.is_some() || self.native_dialog_open {
             return;
         }
-        let receiver = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some(format!("Import {}", role.label().to_lowercase()).into()),
-        });
-        cx.spawn(async move |this, cx| {
-            if let Ok(Ok(Some(paths))) = receiver.await
-                && let Some(path) = paths.into_iter().next()
-            {
-                let _ = this.update(cx, |app, _| app.import_path(role, path));
-            }
+        self.native_dialog_open = true;
+        self.panel = None;
+        let receiver =
+            platform::open_audio_dialog(window, &format!("Choose {}", role.label().to_lowercase()));
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |app, window, cx| {
+                app.native_dialog_open = false;
+                match result {
+                    Ok(Ok(Some(path))) => {
+                        if role == TrackRole::Target {
+                            app.choose_reference_import_mode(path, window, cx);
+                        } else {
+                            app.import_path(role, path);
+                        }
+                    }
+                    Ok(Ok(None)) => {}
+                    Ok(Err(error)) => app.fail(format!("Couldn't open the audio file: {error:#}")),
+                    Err(_) => app.fail("The file dialog closed unexpectedly."),
+                }
+                app.focus.focus(window);
+                cx.notify();
+            });
         })
         .detach();
     }
@@ -661,45 +815,57 @@ impl VoiceApp {
         std::thread::spawn(move || {
             let result = ProjectWorkspace::open(&path)
                 .map(|workspace| JobResult::Opened(Box::new(workspace)))
-                .unwrap_or_else(|e| JobResult::Failed(format!("Cannot open project: {e:#}")));
+                .unwrap_or_else(|error| {
+                    JobResult::Failed(format!("Couldn't open the project: {error:#}"))
+                });
             let _ = tx.send(result);
         });
     }
     fn choose_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.guard_changes(window, cx, |_, _, cx| {
-            let receiver = cx.prompt_for_paths(PathPromptOptions {
-                files: true,
-                directories: false,
-                multiple: false,
-                prompt: Some("Open project".into()),
-            });
-            cx.spawn(async move |this, cx| {
-                if let Ok(Ok(Some(paths))) = receiver.await
-                    && let Some(path) = paths.into_iter().next()
-                {
-                    let _ = this.update(cx, |app, _| app.open_path(path));
+        self.request_document_action(DocumentIntent::OpenDialog, window, cx);
+    }
+    fn show_open_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.native_dialog_open = true;
+        self.panel = None;
+        let receiver = platform::open_project_dialog(window);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |app, window, cx| {
+                app.native_dialog_open = false;
+                match result {
+                    Ok(Ok(Some(path))) => app.open_path(path),
+                    Ok(Ok(None)) => {}
+                    Ok(Err(error)) => app.fail(format!("Couldn't open the project: {error:#}")),
+                    Err(_) => app.fail("The file dialog closed unexpectedly."),
                 }
-            })
-            .detach();
-        });
+                app.focus.focus(window);
+                cx.notify();
+            });
+        })
+        .detach();
     }
     fn save_to(&mut self, path: PathBuf) {
         let Some((tx, _, _)) = self.start_job("Saving project".into()) else {
             return;
         };
         self.workspace.document.transport.cursor = self.cursor;
-        let document = self.doc().clone();
+        let mut document = self.doc().clone();
+        if let Some(name) = path.file_stem() {
+            document.title = name.to_string_lossy().into_owned();
+        }
         let paths = self.workspace.media_paths.clone();
         let revision = self.revision;
         std::thread::spawn(move || {
             let result = project::save_project(&document, &paths, &path)
                 .map(|_| JobResult::Saved { path, revision })
-                .unwrap_or_else(|e| JobResult::Failed(format!("Cannot save project: {e:#}")));
+                .unwrap_or_else(|error| {
+                    JobResult::Failed(format!("Couldn't save the project: {error:#}"))
+                });
             let _ = tx.send(result);
         });
     }
-    fn choose_save(&mut self, force: bool, cx: &mut Context<Self>) {
-        if self.busy.is_some() {
+    fn choose_save(&mut self, force: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy.is_some() || self.native_dialog_open {
             return;
         }
         self.pause();
@@ -707,7 +873,8 @@ impl VoiceApp {
             self.save_to(path);
             return;
         }
-        let name = format!("{}.voice", self.doc().title.replace(['/', ':'], "-"));
+        self.native_dialog_open = true;
+        let name = format!("{}.voice", self.document_title().replace(['/', ':'], "-"));
         let directory = self
             .workspace
             .file_path
@@ -720,67 +887,204 @@ impl VoiceApp {
                     .unwrap_or_else(|| PathBuf::from("/tmp"))
                     .join("Documents")
             });
-        let receiver = cx.prompt_for_new_path(&directory, Some(&name));
-        cx.spawn(async move |this, cx| {
-            if let Ok(Ok(Some(mut path))) = receiver.await {
-                if path.extension().is_none_or(|e| e != "voice") {
-                    path.set_extension("voice");
+        let receiver = platform::save_project_dialog(window, &directory, &name);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = receiver.await;
+            let _ = this.update_in(cx, |app, window, cx| {
+                app.native_dialog_open = false;
+                match result {
+                    Ok(Ok(Some(path))) => app.save_to(path),
+                    Ok(Ok(None)) => app.lifecycle.cancel(),
+                    Ok(Err(error)) => {
+                        app.lifecycle.cancel();
+                        app.fail(format!("Couldn't choose a save location: {error:#}"));
+                    }
+                    Err(_) => {
+                        app.lifecycle.cancel();
+                        app.fail("The save dialog closed unexpectedly.");
+                    }
                 }
-                let _ = this.update(cx, |app, _| app.save_to(path));
-            }
+                app.focus.focus(window);
+                cx.notify();
+            });
         })
         .detach();
     }
-    fn guard_changes(
+    fn request_document_action(
         &mut self,
+        intent: DocumentIntent,
         window: &mut Window,
         cx: &mut Context<Self>,
-        action: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static,
     ) {
-        if self.busy.is_some() {
+        if self.native_dialog_open {
             return;
         }
-        if !self.dirty {
-            action(self, window, cx);
+        if self.busy.is_some() {
+            self.deferred_document_intent = Some(intent);
+            if self
+                .busy
+                .as_ref()
+                .is_some_and(|label| label.starts_with("Analyzing"))
+            {
+                self.cancel.store(true, Ordering::Relaxed);
+            }
             return;
         }
         self.pause();
-        let answer = window.prompt(
-            PromptLevel::Warning,
-            "Discard unsaved changes?",
-            Some("Save the project first to keep imported audio, settings and practice history."),
-            &["Cancel", "Discard changes"],
-            cx,
-        );
-        cx.spawn_in(window, async move |this, cx| {
-            if answer.await.ok() == Some(1) {
-                let _ = this.update_in(cx, |app, window, cx| action(app, window, cx));
+        let step = self.lifecycle.request(intent, self.dirty);
+        self.perform_document_step(step, window, cx);
+    }
+    fn advance_document_lifecycle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.native_dialog_open || self.busy.is_some() {
+            return;
+        }
+        if let Some(step) = self.deferred_document_step.take() {
+            self.perform_document_step(step, window, cx);
+        } else if let Some(intent) = self.deferred_document_intent.take() {
+            self.request_document_action(intent, window, cx);
+        } else if let Ok(urls) = self.open_requests.try_recv()
+            && let Some(path) = urls.first().and_then(|url| file_url_path(url))
+        {
+            self.request_document_action(DocumentIntent::Open(path), window, cx);
+        } else if self.microphone_explanation_pending {
+            self.microphone_explanation_pending = false;
+            self.explain_microphone_access(window, cx);
+        }
+    }
+    fn perform_document_step(
+        &mut self,
+        step: DocumentStep,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match step {
+            DocumentStep::None => {}
+            DocumentStep::Save => self.choose_save(false, window, cx),
+            DocumentStep::PromptSaveChanges => {
+                self.native_dialog_open = true;
+                let message = format!(
+                    "Do you want to save the changes made to “{}”?",
+                    self.document_title()
+                );
+                let answer = window.prompt(
+                    PromptLevel::Warning,
+                    &message,
+                    Some("Your changes will be lost if you don't save them."),
+                    &["Save", "Cancel", "Don't Save"],
+                    cx,
+                );
+                cx.spawn_in(window, async move |this, cx| {
+                    let choice = match answer.await.ok() {
+                        Some(0) => SaveChoice::Save,
+                        Some(2) => SaveChoice::Discard,
+                        _ => SaveChoice::Cancel,
+                    };
+                    let _ = this.update_in(cx, |app, window, cx| {
+                        app.native_dialog_open = false;
+                        let step = app.lifecycle.respond(choice);
+                        app.perform_document_step(step, window, cx);
+                        cx.notify();
+                    });
+                })
+                .detach();
             }
-        })
-        .detach();
+            DocumentStep::Perform(intent) => match intent {
+                DocumentIntent::OpenDialog => self.show_open_dialog(window, cx),
+                DocumentIntent::Open(path) => self.open_path(path),
+                DocumentIntent::New => {
+                    self.pause();
+                    self.stop_input();
+                    self.workspace = ProjectWorkspace::new();
+                    self.cursor = 0.;
+                    self.view_start = 0.;
+                    self.dirty = false;
+                    self.panel = None;
+                    self.notice = None;
+                    self.mode = AnalysisMode::Monophonic;
+                    self.refresh_analysis();
+                    if let Some(engine) = self.engine.as_mut()
+                        && let Err(error) =
+                            engine.configure_audio(&self.workspace.document.settings.audio)
+                    {
+                        self.fail(format!(
+                            "New project created. Audio needs attention: {error:#}"
+                        ));
+                    }
+                    if let Err(error) = self.sync_audio() {
+                        self.fail(error);
+                    }
+                    self.sync_document_chrome(window);
+                }
+                DocumentIntent::Close => {
+                    self.pending_exit = true;
+                    self.stop_input();
+                    if let Some(settings) = self.audio_settings_window.take() {
+                        let _ = settings.update(cx, |_, window, _| window.remove_window());
+                    }
+                    window.remove_window();
+                }
+                DocumentIntent::Quit => {
+                    self.pending_exit = true;
+                    self.stop_input();
+                    platform::allow_termination();
+                    cx.quit();
+                }
+            },
+        }
     }
     fn new_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.guard_changes(window, cx, |app, _, _| {
-            app.pause();
-            app.stop_input();
-            app.workspace = ProjectWorkspace::new();
-            app.cursor = 0.;
-            app.view_start = 0.;
-            app.dirty = false;
-            app.panel = None;
-            app.notice = None;
-            app.mode = AnalysisMode::Monophonic;
-            app.refresh_analysis();
-            if let Err(e) = app.sync_audio() {
-                app.fail(e);
-            }
-        });
+        self.request_document_action(DocumentIntent::New, window, cx);
     }
     fn quit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.guard_changes(window, cx, |app, _, cx| {
-            app.pending_exit = true;
-            app.stop_input();
-            cx.quit();
+        self.request_document_action(DocumentIntent::Quit, window, cx);
+    }
+    fn close_document(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.request_document_action(DocumentIntent::Close, window, cx);
+    }
+    fn document_title(&self) -> String {
+        self.workspace
+            .file_path
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.doc().title.clone())
+    }
+    fn sync_document_chrome(&mut self, window: &mut Window) {
+        let title = self.document_title();
+        let state = (self.workspace.file_path.clone(), self.dirty, title.clone());
+        if self.native_document_state.as_ref() != Some(&state) {
+            window.set_window_title(&format!("{title} — Voice"));
+            platform::update_document_state(
+                window,
+                self.workspace.file_path.as_deref(),
+                self.dirty,
+            );
+            self.native_document_state = Some(state);
+        }
+    }
+    fn show_audio_settings(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        // Opening a native window can synchronously render it or fire activation
+        // observers. Release the document borrow before either reads its owner.
+        let owner = cx.entity();
+        let existing = self.audio_settings_window;
+        cx.defer(move |cx| {
+            if let Some(handle) = existing
+                && handle
+                    .update(cx, |_, window, _| window.activate_window())
+                    .is_ok()
+            {
+                return;
+            }
+            match settings::open(owner.clone(), cx) {
+                Ok(handle) => {
+                    owner.update(cx, |app, _| app.audio_settings_window = Some(handle));
+                    let _ = handle.update(cx, |_, window, _| window.activate_window());
+                }
+                Err(error) => owner.update(cx, |app, cx| {
+                    app.fail(format!("Couldn't open Audio Settings: {error:#}"));
+                    cx.notify();
+                }),
+            }
         });
     }
     fn stop_input(&mut self) {
@@ -789,26 +1093,96 @@ impl VoiceApp {
         }
         self.input_running = false;
         self.input_pending = false;
+        self.microphone_requested = false;
+        self.microphone_explanation_pending = false;
         self.workspace.document.settings.audio.monitor = false;
         self.live = None;
         self.finish_take();
     }
-    fn toggle_input(&mut self) {
+    fn toggle_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.input_running || self.input_pending {
             self.stop_input();
             return;
         }
+        if self.permission_pending {
+            self.microphone_requested = false;
+            return;
+        }
+        self.microphone_authorization = platform::microphone_authorization();
+        match self.microphone_authorization {
+            platform::MicrophoneAuthorization::Authorized => self.start_authorized_input(),
+            platform::MicrophoneAuthorization::NotDetermined => {
+                self.permission_pending = true;
+                self.microphone_requested = true;
+                let receiver = platform::request_microphone_authorization();
+                cx.spawn(async move |this, cx| {
+                    let granted = receiver.await.unwrap_or(false);
+                    let _ = this.update(cx, |app, cx| {
+                        app.permission_pending = false;
+                        app.microphone_authorization = platform::microphone_authorization();
+                        let wanted = std::mem::take(&mut app.microphone_requested);
+                        match microphone_request_outcome(
+                            wanted,
+                            granted,
+                            app.microphone_authorization,
+                        ) {
+                            MicrophoneRequestOutcome::Start => app.start_authorized_input(),
+                            MicrophoneRequestOutcome::Explain => {
+                                app.microphone_explanation_pending = true
+                            }
+                            MicrophoneRequestOutcome::None => {}
+                        }
+                        cx.notify();
+                    });
+                })
+                .detach();
+            }
+            _ => self.explain_microphone_access(window, cx),
+        }
+    }
+    fn explain_microphone_access(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.microphone_authorization == platform::MicrophoneAuthorization::Restricted {
+            drop(window.prompt(
+                PromptLevel::Info,
+                "Microphone access is restricted",
+                Some("A system restriction is preventing Voice from using the microphone."),
+                &["OK"],
+                cx,
+            ));
+            return;
+        }
+        let answer=window.prompt(PromptLevel::Info,"Allow microphone access for Voice",Some("Open System Settings → Privacy & Security → Microphone and turn on Voice. Your recordings can still be opened and played without microphone access."),&["Open System Settings","Cancel"],cx);
+        cx.spawn(async move |_, cx| {
+            if answer.await.ok() == Some(0) {
+                let _ = cx.update(platform::open_microphone_settings);
+            }
+        })
+        .detach();
+    }
+    fn open_microphone_settings(&mut self, cx: &mut Context<Self>) {
+        platform::open_microphone_settings(cx);
+    }
+    fn start_authorized_input(&mut self) {
         self.workspace.document.settings.audio.monitor = false;
-        if let Some(e) = self.engine.as_mut() {
-            match e.start_input(&self.workspace.document.settings.audio) {
-                Ok(()) => {
-                    self.input_pending = true;
-                }
-                Err(e) => self.fail(format!("Cannot enable microphone: {e:#}")),
+        if let Some(engine) = self.engine.as_mut() {
+            match engine.start_input(&self.workspace.document.settings.audio) {
+                Ok(()) => self.input_pending = true,
+                Err(error) => self.fail(format!("Couldn't start the microphone: {error:#}")),
             }
         } else {
-            self.fail("No audio device is available.");
+            self.fail("No audio device is available. Open Audio Settings to reconnect.");
         }
+    }
+    fn toggle_monitoring(&mut self) {
+        if !self.input_running {
+            self.fail("Turn on the microphone before enabling monitoring.");
+            return;
+        }
+        self.workspace.document.settings.audio.monitor = !self.doc().settings.audio.monitor;
+        if let Some(engine) = &self.engine {
+            engine.set_monitor(self.doc().settings.audio.monitor);
+        }
+        self.changed();
     }
     fn apply_audio(&mut self) {
         self.pause();
@@ -917,78 +1291,37 @@ fn file_url_path(value: &str) -> Option<PathBuf> {
     Some(PathBuf::from(String::from_utf8(bytes).ok()?))
 }
 
-pub fn run() {
-    let (open_tx, open_rx) = crossbeam_channel::unbounded();
-    let application = Application::new();
-    application.on_open_urls(move |urls| {
-        let _ = open_tx.send(urls);
-    });
-    let path = std::env::args_os().nth(1).map(PathBuf::from);
-    application.run(move |cx: &mut App| {
-        cx.text_system()
-            .add_fonts(vec![std::borrow::Cow::Borrowed(include_bytes!(
-                "../../assets/fonts/JetBrainsMono-Regular.ttf"
-            ))])
-            .expect("Bundled font is valid");
-        cx.bind_keys([
-            KeyBinding::new("space", TogglePlayback, None),
-            KeyBinding::new("enter", ReturnToStart, None),
-            KeyBinding::new("cmd-o", OpenProject, None),
-            KeyBinding::new("cmd-s", SaveProject, None),
-            KeyBinding::new("cmd-shift-s", SaveProjectAs, None),
-            KeyBinding::new("cmd-n", NewProject, None),
-            KeyBinding::new("cmd-i", ImportTarget, None),
-            KeyBinding::new("cmd-q", Quit, None),
-            KeyBinding::new("cmd-w", Quit, None),
-            KeyBinding::new("left", SeekBack, None),
-            KeyBinding::new("right", SeekForward, None),
-            KeyBinding::new("l", ToggleLoop, None),
-            KeyBinding::new("escape", ClosePanel, None),
-        ]);
-        cx.bind_keys([
-            KeyBinding::new("cmd-1", ShowMix, None),
-            KeyBinding::new("cmd-2", ShowTarget, None),
-            KeyBinding::new("cmd-3", ShowAudio, None),
-            KeyBinding::new("cmd-4", ShowHistory, None),
-            KeyBinding::new("cmd-/", ShowHelp, None),
-        ]);
-        cx.on_window_closed(|cx| {
-            if cx.windows().is_empty() {
-                cx.quit();
-            }
-        })
-        .detach();
-        let bounds = Bounds::centered(None, size(px(1180.), px(780.)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(size(px(880.), px(600.))),
-                titlebar: Some(gpui::TitlebarOptions {
-                    title: Some("Voice".into()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            |window, cx| {
-                let entity = cx.new(|cx| VoiceApp::new(window, cx, open_rx));
-                let weak = entity.downgrade();
-                window.on_window_should_close(cx, move |window, cx| {
-                    weak.update(cx, |app, cx| {
-                        if app.pending_exit {
-                            return true;
-                        }
-                        app.quit(window, cx);
-                        false
-                    })
-                    .unwrap_or(true)
-                });
-                if let Some(path) = path {
-                    entity.update(cx, |app, _| app.open_path(path));
-                }
-                entity
-            },
-        )
-        .expect("Cannot open Voice window");
-        cx.activate(true);
-    });
+#[cfg(test)]
+mod permission_tests {
+    use super::platform::MicrophoneAuthorization;
+    use super::{MicrophoneRequestOutcome, microphone_request_outcome};
+
+    #[test]
+    fn canceled_request_never_starts_input_after_a_late_permission_grant() {
+        assert_eq!(
+            microphone_request_outcome(false, true, MicrophoneAuthorization::Authorized),
+            MicrophoneRequestOutcome::None
+        );
+    }
+    #[test]
+    fn permission_completion_requires_current_authorization_before_starting_input() {
+        assert_eq!(
+            microphone_request_outcome(true, true, MicrophoneAuthorization::Authorized),
+            MicrophoneRequestOutcome::Start
+        );
+        for authorization in [
+            MicrophoneAuthorization::Denied,
+            MicrophoneAuthorization::Restricted,
+            MicrophoneAuthorization::NotDetermined,
+        ] {
+            assert_eq!(
+                microphone_request_outcome(true, true, authorization),
+                MicrophoneRequestOutcome::Explain
+            );
+        }
+        assert_eq!(
+            microphone_request_outcome(true, false, MicrophoneAuthorization::Denied),
+            MicrophoneRequestOutcome::Explain
+        );
+    }
 }
