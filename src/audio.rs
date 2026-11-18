@@ -188,6 +188,23 @@ impl Shared {
         self.input_generation.fetch_add(1, Ordering::AcqRel);
         while self.pitch.pop().is_some() {}
     }
+    fn refresh_diagnostics(&self, diagnostics: &mut AudioDiagnostics) {
+        diagnostics.output_buffer_frames = self.output_frames.load(Ordering::Relaxed);
+        diagnostics.input_buffer_frames = self.input_frames.load(Ordering::Relaxed);
+        diagnostics.underruns = self.underruns.load(Ordering::Relaxed);
+        diagnostics.input_drops = self.input_drops.load(Ordering::Relaxed);
+        diagnostics.stream_error = self.stream_error.load(Ordering::Relaxed);
+        diagnostics.analysis_window_frames = 4096;
+        diagnostics.analysis_delay_seconds = if self.input_active.load(Ordering::Acquire) {
+            load_f64(&self.output_lead)
+                + (3072.0 + diagnostics.input_buffer_frames as f64)
+                    / self.input_rate.load(Ordering::Acquire).max(1) as f64
+                + load_f64(&self.latency).max(0.0)
+                + 0.005
+        } else {
+            0.0
+        };
+    }
     fn clear_playback(&self) {
         while self.playback.pop().is_some() {}
     }
@@ -222,6 +239,10 @@ impl AudioHandle {
             ));
         }
         frames
+    }
+    /// Refreshes callback-owned fields using atomics only; no hardware API is queried.
+    pub fn refresh_diagnostics(&self, diagnostics: &mut AudioDiagnostics) {
+        self.shared.refresh_diagnostics(diagnostics);
     }
     pub fn position(&self) -> f64 {
         load_f64(&self.shared.position)
@@ -557,18 +578,9 @@ impl AudioEngine {
         frames
     }
     pub fn diagnostics(&self) -> AudioDiagnostics {
-        let mut d = self.diagnostics.clone();
-        d.output_buffer_frames = self.shared.output_frames.load(Ordering::Relaxed);
-        d.input_buffer_frames = self.shared.input_frames.load(Ordering::Relaxed);
-        d.underruns = self.shared.underruns.load(Ordering::Relaxed);
-        d.input_drops = self.shared.input_drops.load(Ordering::Relaxed);
-        d.stream_error = self.shared.stream_error.load(Ordering::Relaxed);
-        d.analysis_window_frames = 4096;
-        d.analysis_delay_seconds = load_f64(&self.shared.output_lead)
-            + (3072.0 + d.input_buffer_frames as f64) / d.input_sample_rate.max(1) as f64
-            + load_f64(&self.shared.latency).max(0.0)
-            + 0.005;
-        d
+        let mut diagnostics = self.diagnostics.clone();
+        self.shared.refresh_diagnostics(&mut diagnostics);
+        diagnostics
     }
 }
 impl Drop for AudioEngine {
@@ -977,6 +989,45 @@ impl MonitorState {
         value
     }
 }
+fn render_output<T>(data: &mut [T], channels: usize, shared: &Shared, monitor: &mut MonitorState)
+where
+    T: cpal::SizedSample + cpal::FromSample<f32>,
+{
+    shared
+        .output_frames
+        .store((data.len() / channels) as u32, Ordering::Relaxed);
+    for output in data.chunks_exact_mut(channels) {
+        let mix = render_frame(shared);
+        let live = monitor.next(shared);
+        for (channel, sample) in output.iter_mut().enumerate() {
+            let value = if channels == 1 {
+                (mix[0] + mix[1]) * 0.5
+            } else if channel < 2 {
+                mix[channel]
+            } else {
+                0.0
+            };
+            *sample = T::from_sample(safe_output(value + live));
+        }
+    }
+}
+fn output_error(shared: &Shared) {
+    shared.stream_error.store(true, Ordering::Release);
+    shared.playing.store(false, Ordering::Release);
+    shared.output_active.store(false, Ordering::Release);
+}
+#[cfg(test)]
+pub(crate) fn output_callback_for_test(handle: &AudioHandle, frames: usize, running: bool) {
+    let mut data = vec![0.0_f32; frames * 2];
+    let mut monitor = MonitorState::new();
+    handle.shared.playing.store(running, Ordering::Release);
+    render_output(&mut data, 2, &handle.shared, &mut monitor);
+}
+#[cfg(test)]
+pub(crate) fn output_error_for_test(handle: &AudioHandle) {
+    output_error(&handle.shared);
+}
+
 fn output_stream<T>(
     device: &cpal::Device,
     config: &StreamConfig,
@@ -1004,29 +1055,9 @@ where
             shared
                 .callback_at
                 .store(shared.origin.elapsed().as_nanos() as u64, Ordering::Release);
-            shared
-                .output_frames
-                .store((data.len() / channels) as u32, Ordering::Relaxed);
-            for output in data.chunks_exact_mut(channels) {
-                let mix = render_frame(&shared);
-                let live = monitor.next(&shared);
-                for (channel, sample) in output.iter_mut().enumerate() {
-                    let value = if channels == 1 {
-                        (mix[0] + mix[1]) * 0.5
-                    } else if channel < 2 {
-                        mix[channel]
-                    } else {
-                        0.0
-                    };
-                    *sample = T::from_sample(safe_output(value + live));
-                }
-            }
+            render_output(data, channels, &shared, &mut monitor);
         },
-        move |_| {
-            errors.stream_error.store(true, Ordering::Release);
-            errors.playing.store(false, Ordering::Release);
-            errors.output_active.store(false, Ordering::Release);
-        },
+        move |_| output_error(&errors),
         Some(Duration::from_secs(3)),
     )?)
 }
@@ -1392,5 +1423,34 @@ mod tests {
         eprintln!("probe configured diagnostics={:?}", engine.diagnostics());
         drop(engine);
         eprintln!("probe selected output closed");
+    }
+    #[test]
+    fn diagnostic_delay_tracks_live_input_rate_and_compensation_then_clears_on_stop() {
+        let shared = Arc::new(Shared::new());
+        let handle = AudioHandle {
+            shared: shared.clone(),
+        };
+        let mut diagnostics = AudioDiagnostics {
+            input_sample_rate: 1,
+            ..Default::default()
+        };
+        handle.refresh_diagnostics(&mut diagnostics);
+        assert_eq!(diagnostics.analysis_delay_seconds, 0.0);
+        shared.input_active.store(true, Ordering::Release);
+        shared.input_rate.store(48_000, Ordering::Release);
+        shared.input_frames.store(256, Ordering::Relaxed);
+        shared.input_drops.store(7, Ordering::Relaxed);
+        store_f64(&shared.output_lead, 0.01);
+        handle.refresh_diagnostics(&mut diagnostics);
+        let before = diagnostics.analysis_delay_seconds;
+        assert!((before - (0.01 + 3328.0 / 48_000.0 + 0.005)).abs() < 1e-9);
+        assert_eq!(diagnostics.input_buffer_frames, 256);
+        assert_eq!(diagnostics.input_drops, 7);
+        handle.set_latency_compensation(100.0);
+        handle.refresh_diagnostics(&mut diagnostics);
+        assert!((diagnostics.analysis_delay_seconds - before - 0.1).abs() < 1e-9);
+        handle.stop_input_capture();
+        handle.refresh_diagnostics(&mut diagnostics);
+        assert_eq!(diagnostics.analysis_delay_seconds, 0.0);
     }
 }

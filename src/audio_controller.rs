@@ -132,7 +132,11 @@ impl AudioController {
         if let Ok(snapshot) = self.shared.snapshot.try_lock() {
             *self.cached.borrow_mut() = snapshot.clone();
         }
-        self.cached.borrow().clone()
+        let mut snapshot = self.cached.borrow_mut();
+        if let Some(handle) = self.handle() {
+            handle.refresh_diagnostics(&mut snapshot.diagnostics);
+        }
+        snapshot.clone()
     }
     pub fn set_tracks(&mut self, target: Option<PathBuf>, backing: Option<PathBuf>) -> Result<()> {
         self.pause();
@@ -571,9 +575,11 @@ mod tests {
     #[ignore = "Manual output-only hardware diagnostic; never runs in the core test suite"]
     fn native_controller_output_probe() {
         let controller = AudioController::new().unwrap();
+        let mut observed_output = false;
         for second in 0..10 {
             thread::sleep(Duration::from_secs(1));
             let state = controller.poll();
+            observed_output |= state.diagnostics.output_buffer_frames > 0;
             eprintln!(
                 "probe second={} initializing={} configuring={} output={:?} observed_frames={} devices={:?} error={:?}",
                 second + 1,
@@ -592,5 +598,49 @@ mod tests {
         }
         drop(controller);
         eprintln!("probe controller dropped without joining hardware owner");
+        assert!(
+            observed_output,
+            "No output callback was observed within 10 seconds"
+        );
+    }
+    #[test]
+    fn diagnostics_follow_live_callbacks_without_another_owner_command() {
+        let (release, blocked) = bounded::<()>(1);
+        let (ready, initialized) = bounded(1);
+        let (finished, complete) = bounded(1);
+        let controller = AudioController::spawn(move |receive, shared| {
+            let engine = AudioEngine::unconfigured().unwrap();
+            *shared.handle.lock().unwrap() = Some(engine.handle());
+            update_diagnostics(&shared, &engine);
+            let _keep_receive = receive;
+            ready.send(()).unwrap();
+            let _ = blocked.recv();
+            drop(engine);
+            let _ = finished.send(());
+        })
+        .unwrap();
+        initialized.recv_timeout(Duration::from_secs(1)).unwrap();
+        let before = controller.poll();
+        assert_eq!(before.diagnostics.output_buffer_frames, 0);
+        let handle = controller.handle().unwrap();
+        crate::audio::output_callback_for_test(&handle, 256, true);
+        let first = controller.poll();
+        assert_eq!(first.diagnostics.output_buffer_frames, 256);
+        assert_eq!(
+            first.diagnostics.underruns,
+            before.diagnostics.underruns + 256
+        );
+        assert_eq!(first.command_seq, before.command_seq);
+        assert_eq!(first.completed_seq, before.completed_seq);
+        crate::audio::output_callback_for_test(&handle, 64, false);
+        crate::audio::output_error_for_test(&handle);
+        let second = controller.poll();
+        assert_eq!(second.diagnostics.output_buffer_frames, 64);
+        assert_eq!(second.diagnostics.underruns, first.diagnostics.underruns);
+        assert!(second.diagnostics.stream_error);
+        assert_eq!(second.completed_seq, before.completed_seq);
+        drop(controller);
+        release.send(()).unwrap();
+        complete.recv_timeout(Duration::from_secs(1)).unwrap();
     }
 }
