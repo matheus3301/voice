@@ -36,7 +36,7 @@ Each neural input is mono/22,050 Hz, produced by the native box resampler. Input
 
 The note-decoder algorithm is adapted from the [official Spotify source](https://github.com/spotify/basic-pitch/blob/fa5997af0a8210982619003269994a1be25eddf3/basic_pitch/note_creation.py). Only each region's core survives trimming. Adjacent same-pitch notes are joined across a region boundary only when both predictions independently extend across that boundary. All surviving candidates are preserved. Register and high/low selection define a provisional study line; explicit review remains required before scoring.
 
-The historical TensorFlow.js model, decoder and benchmark remain under `Research/web-v0.2`. Their polyphonic precision/recall values are not a measured accuracy claim for this native ONNX implementation.
+The historical TensorFlow.js model, decoder and benchmark remain under `research/web-v0.2`. Their polyphonic precision/recall values are not a measured accuracy claim for this native ONNX implementation.
 
 ## Scoring and attempt boundaries
 

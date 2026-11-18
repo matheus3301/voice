@@ -3,6 +3,8 @@ name = "voice"
 version = "0.5.0"
 edition = "2024"
 description = "A local vocal practice workbench"
+license = "MIT"
+repository = "https://github.com/matheus3301/voice"
 
 [features]
 default = ["desktop"]

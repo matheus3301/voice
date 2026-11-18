@@ -1055,7 +1055,7 @@
     4982,
     1055
   ],
-  "dataset": "Vocadito Zenodo 5578807 v3, CC-BY-4.0; see Research/web-v0.2/docs/BENCHMARK.md for attribution and source hashes",
+  "dataset": "Vocadito Zenodo 5578807 v3, CC-BY-4.0; see research/web-v0.2/docs/BENCHMARK.md for attribution and source hashes",
   "elapsed_seconds": 37.43385525,
   "fingerprint_note": "FNV-1a is a reproducibility fingerprint, not a cryptographic integrity guarantee",
   "micro_metrics": {

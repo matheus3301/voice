@@ -28,7 +28,7 @@ All active UI, source and documentation are English. Use the macOS system font a
 
 Use the native menu bar for Voice, File, Edit, Playback, View, Window and Help commands. Open/Save panels are AppKit sheets attached to the document's NSWindow, with audio/`.voice` filters and a default `.voice` extension. Standard document chrome reflects the represented file and edited state; opened/saved files populate Open Recent. About uses the standard macOS panel.
 
-The persistent Mixer sidebar combines device/channel selectors, Mic, Hear myself, Record take, latest-take playback and three faders/meters. It can be hidden to expand the musical canvas. Audio Settings is a separate native window; reference review, history and help remain GPUI overlays. The musical canvas and application controls are rendered by GPUI; file dialogs, menu bar, permission prompt and document alerts use macOS integrations. Follow [the interface system](../.interface-design/system.md) and [documented DAW setup precedents](DAW_SETUP.md).
+The persistent Mixer sidebar combines device/channel selectors, Mic, Hear myself, Record take, latest-take playback and three faders/meters. It can be hidden to expand the musical canvas. Audio Settings is a separate native window; reference review, history and help remain GPUI overlays. The musical canvas and application controls are rendered by GPUI; file dialogs, menu bar, permission prompt and document alerts use macOS integrations. Follow the [documented DAW setup precedents](DAW_SETUP.md).
 
 Errors remain visible. Long operations show progress and allow cancellation where safe; failed or canceled analysis preserves the existing reference. Dialogs serialize document actions and restore focus after completion.
 
@@ -47,7 +47,7 @@ Errors remain visible. Long operations show progress and allow cancellation wher
 
 Native macOS build and launch; deferred two-file setup; native menus/sheets; separate Audio Settings; unsaved-change protection; permission before capture; machine-local routing; valid mono channel selection; persistent faders/meters; independent capture and monitoring; record/finalize/listen with stored trace/result; reference identity/selection replay guards; v1 migration and v2 archive round-trip preserving original/take bytes; cancellation/errors preserving prior state; bounded media processing without fixed audio caps.
 
-These criteria describe behavior, not an accuracy result. Runtime evidence belongs in [VALIDATION.md](VALIDATION.md); analysis quality and native benchmark conditions are documented separately. Historical web benchmarks remain under `Research/web-v0.2/` and do not establish native accuracy.
+These criteria describe behavior, not an accuracy result. Runtime evidence belongs in [VALIDATION.md](VALIDATION.md); analysis quality and native benchmark conditions are documented separately. Historical web benchmarks remain under `research/web-v0.2/` and do not establish native accuracy.
 
 ## Boundaries
 

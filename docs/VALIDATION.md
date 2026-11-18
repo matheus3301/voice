@@ -26,7 +26,7 @@ The v0.5 preview used a version-specific bundle identifier, a separate preferenc
 
 ## Analysis evidence
 
-Pitch analysis algorithms were not changed by v0.5, so the full corpus benchmark was not rerun. The separately documented native 40-clip Vocadito run measured RPA50c 84.5578%, RCA 85.6926%, voicing recall 91.5657% and false alarm 10.4191%; see [NATIVE_BENCHMARK.md](NATIVE_BENCHMARK.md). Historical JavaScript/polyphonic results remain under Research and do not establish native accuracy. Native model inference/chunking already has synthetic and real-recording smoke evidence.
+Pitch analysis algorithms were not changed by v0.5, so the full corpus benchmark was not rerun. The separately documented native 40-clip Vocadito run measured RPA50c 84.5578%, RCA 85.6926%, voicing recall 91.5657% and false alarm 10.4191%; see [NATIVE_BENCHMARK.md](NATIVE_BENCHMARK.md). Historical JavaScript/polyphonic results remain under research/ and do not establish native accuracy. Native model inference/chunking already has synthetic and real-recording smoke evidence.
 
 ## Remaining limits
 

@@ -8,21 +8,26 @@ Projects save as self-contained `.voice` files with original audio, recorded tak
 
 ## Run
 
-Requires macOS, Xcode with the Metal toolchain, and Rust 1.100.0. The pinned toolchain is installed automatically by rustup when available.
+Requires macOS, Xcode with the Metal toolchain, and [mise](https://mise.jdx.dev/). The development tools are pinned in `mise.toml`: Rust 1.100.0 with rustfmt/Clippy and Python 3.12.16 for packaging. Cargo manages application dependencies through `Cargo.toml` and `Cargo.lock`.
 
 ```sh
-# If Xcode reports a missing Metal compiler:
-xcodebuild -downloadComponent MetalToolchain
+git clone https://github.com/matheus3301/voice.git
+cd voice
+mise trust
+mise install
 
-scripts/bundle.sh --debug
+# If Xcode reports a missing Metal compiler (installed through Apple):
+mise run setup:metal
+
+mise run build:debug
 open dist/Voice.app
 ```
 
-For an optimized local build, run `scripts/bundle.sh` without `--debug`. Launch the `.app` bundle so macOS can identify Voice for microphone permission and project files. The local bundle is signed ad hoc.
+For an optimized local build, run `mise run build`. `mise run doctor` checks Xcode, Metal and the configured tool versions. Xcode is installed separately through Apple. Launch the `.app` bundle so macOS can identify Voice for microphone permission and project files. The local bundle is signed ad hoc. Rustup users can still use the matching `rust-toolchain.toml` and `scripts/bundle.sh` directly.
 
 No Node, Python or network connection is needed to run the finished application. Python 3 is used by the packaging script to read Cargo metadata. The polyphonic model is embedded in the executable. Building downloads dependencies and the native ONNX runtime, which is statically linked on the validated Apple Silicon configuration.
 
-For an isolated review build, use `scripts/bundle.sh --debug --preview`. It produces `build/Voice Preview.app` with a separate app identity and leaves the normal bundle and its project association alone.
+For an isolated review build, use `mise run preview`. It produces `build/Voice Preview.app` with a separate app identity and leaves the normal bundle and its project association alone.
 Set `VOICE_PREFERENCES_PATH` to a disposable JSON path when testing routing without changing the normal machine preferences.
 
 ## Use
@@ -60,12 +65,9 @@ See [DAW setup research](docs/DAW_SETUP.md), [native analysis](docs/NATIVE_ANALY
 ## Development
 
 ```sh
-cargo fmt --all --check
-cargo test --no-default-features --lib
-cargo test --bin voice
-cargo check --bin voice
-cargo clippy --all-targets -- -D warnings
-cargo build --bin voice
+mise run check
+mise run test
+mise run build
 ```
 
 Source responsibilities:
@@ -88,6 +90,8 @@ All active code, UI text, comments and documentation are English. Commits use Co
 
 ## Research archive
 
-The previous web application, market research, papers, benchmark reports and scripts are preserved unchanged under [`Research/web-v0.2/`](Research/web-v0.2/). This is a historical snapshot, not a runtime dependency of the desktop application. Historical benchmark results are not automatically evidence for a native implementation.
+The previous web application, market research, papers, benchmark reports and scripts are preserved under [`research/web-v0.2/`](research/web-v0.2/). Obsolete hosting metadata has been removed. This is a historical snapshot, not a runtime dependency of the desktop application. Historical benchmark results are not automatically evidence for a native implementation.
 
-Third-party licenses and model provenance are included under `assets/`.
+## License
+
+Voice's original code is licensed under [MIT](LICENSE). Bundled third-party models, fonts and runtime notices retain their own licenses and provenance under `assets/` and `research/web-v0.2/public/models/`.

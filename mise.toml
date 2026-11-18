@@ -1,0 +1,52 @@
+[tools]
+rust = { version = "1.100.0", profile = "minimal", components = "rustfmt,clippy" }
+python = "3.12.16"
+
+# Xcode and its Metal compiler are macOS prerequisites, installed through Apple.
+# Cargo.toml and Cargo.lock manage the Rust application dependencies.
+# Python is used for bundle metadata only; the application has no Python runtime.
+
+[tasks.doctor]
+description = "Check the native macOS build prerequisites"
+run = [
+  "xcodebuild -version",
+  "xcrun --sdk macosx metal -v",
+  "rustc --version",
+  "python3 --version",
+]
+
+[tasks."setup:metal"]
+description = "Install Apple's Metal compiler component for the selected Xcode"
+run = "xcodebuild -downloadComponent MetalToolchain"
+
+[tasks.test]
+description = "Run core and desktop unit tests without opening audio hardware"
+run = [
+  "cargo test --locked --no-default-features --lib",
+  "cargo test --locked --bin voice",
+]
+
+[tasks.check]
+description = "Run formatting, tests, native compilation and Clippy"
+run = [
+  "cargo fmt --all --check",
+  "cargo test --locked --no-default-features --lib",
+  "cargo check --locked --all-targets",
+  "cargo test --locked --bin voice",
+  "cargo clippy --locked --all-targets -- -D warnings",
+]
+
+[tasks.build]
+description = "Build and sign the optimized Voice.app bundle"
+depends = ["doctor"]
+run = "scripts/bundle.sh"
+
+[tasks."build:debug"]
+description = "Build and sign a development Voice.app bundle"
+depends = ["doctor"]
+run = "scripts/bundle.sh --debug"
+
+[tasks.preview]
+description = "Build a preview with an isolated application identity"
+depends = ["doctor"]
+run = "scripts/bundle.sh --preview"

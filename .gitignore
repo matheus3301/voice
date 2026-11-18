@@ -4,8 +4,8 @@
 *.voice.tmp
 *.log
 .DS_Store
-Research/web-v0.2/node_modules/
-Research/web-v0.2/dist/
-Research/web-v0.2/*.tsbuildinfo
+research/web-v0.2/node_modules/
+research/web-v0.2/dist/
+research/web-v0.2/*.tsbuildinfo
 /dist/
 /.vite/
