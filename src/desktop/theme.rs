@@ -25,6 +25,8 @@ pub struct Theme {
     pub candidate: u32,
     pub cursor: u32,
     pub waveform: u32,
+    pub meter: u32,
+    pub recording: u32,
 }
 impl Theme {
     pub fn for_window(window: &Window) -> Self {
@@ -52,6 +54,8 @@ impl Theme {
                 candidate: 0x474d58,
                 cursor: 0xe6e6eb,
                 waveform: 0x7b8ca2,
+                meter: 0x30d158,
+                recording: 0xff453a,
             },
             WindowAppearance::Light | WindowAppearance::VibrantLight => Self {
                 window: 0xf2f2f4,
@@ -76,6 +80,8 @@ impl Theme {
                 candidate: 0xdce1e9,
                 cursor: 0x4b4b52,
                 waveform: 0x94a3b7,
+                meter: 0x238c48,
+                recording: 0xd93025,
             },
         }
     }

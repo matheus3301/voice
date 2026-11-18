@@ -26,11 +26,11 @@ pub(super) fn request_quit(cx: &mut App) {
 
 fn create_document_window(cx: &mut App) -> anyhow::Result<WindowHandle<VoiceApp>> {
     let receiver = cx.global::<DesktopState>().open_requests.clone();
-    let bounds = Bounds::centered(None, size(px(1120.), px(760.)), cx);
+    let bounds = Bounds::centered(None, size(px(1240.), px(820.)), cx);
     let handle = cx.open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
-            window_min_size: Some(size(px(840.), px(580.))),
+            window_min_size: Some(size(px(1060.), px(680.))),
             titlebar: Some(gpui::TitlebarOptions {
                 title: Some("Untitled — Voice".into()),
                 appears_transparent: false,
@@ -145,6 +145,7 @@ pub(super) fn install_menus(cx: &mut App) {
             name: "Playback".into(),
             items: vec![
                 MenuItem::action("Play / Pause", TogglePlayback),
+                MenuItem::action("Record Your Voice", ToggleRecording),
                 MenuItem::action("Return to Beginning", ReturnToStart),
                 MenuItem::separator(),
                 MenuItem::action("Move Back One Second", SeekBack),
@@ -238,6 +239,11 @@ pub fn run() {
             KeyBinding::new(
                 "alt-m",
                 ToggleMonitoring,
+                Some("Voice && !VoiceControl && !VoiceSheet"),
+            ),
+            KeyBinding::new(
+                "r",
+                ToggleRecording,
                 Some("Voice && !VoiceControl && !VoiceSheet"),
             ),
             KeyBinding::new("cmd-o", OpenProject, None),

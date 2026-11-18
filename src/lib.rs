@@ -8,3 +8,5 @@ pub mod scoring;
 pub mod audio_controller;
 
 pub mod document_lifecycle;
+pub mod preferences;
+pub mod recording;

@@ -183,6 +183,8 @@ impl PracticeScorer {
             coverage: score.coverage,
             evaluated_seconds: score.target_seconds,
             trace,
+            recording: None,
+            reference_selection: None,
         }
     }
 }

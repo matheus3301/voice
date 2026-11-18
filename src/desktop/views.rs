@@ -10,27 +10,27 @@ use std::{cell::Cell, rc::Rc};
 // The document follows system surfaces. Blue identifies the reference; orange identifies live singing.
 // The musical canvas owns the window; controls use the system font, 28px height and a 4px rhythm.
 #[derive(Clone, Copy)]
-struct Controls {
-    theme: Theme,
-    enabled: bool,
-    tab_stop: bool,
+pub(super) struct Controls {
+    pub(super) theme: Theme,
+    pub(super) enabled: bool,
+    pub(super) tab_stop: bool,
 }
 impl Controls {
-    fn enabled(self, enabled: bool) -> Self {
+    pub(super) fn enabled(self, enabled: bool) -> Self {
         Self {
             enabled: self.enabled && enabled,
             ..self
         }
     }
 }
-fn button(
+pub(super) fn button(
     controls: Controls,
     id: impl Into<SharedString>,
     title: impl Into<SharedString>,
     active: bool,
     cx: &Context<VoiceApp>,
     action: impl Fn(&mut VoiceApp, &mut Window, &mut Context<VoiceApp>) + 'static,
-) -> impl IntoElement {
+) -> gpui::Stateful<Div> {
     let theme = controls.theme;
     let action = Rc::new(action);
     let keyboard_action = action.clone();
@@ -85,7 +85,7 @@ fn button(
             }),
         )
 }
-fn label(theme: Theme, text: impl Into<SharedString>) -> Div {
+pub(super) fn label(theme: Theme, text: impl Into<SharedString>) -> Div {
     div()
         .text_color(rgb(theme.secondary))
         .text_size(px(12.))
@@ -118,16 +118,124 @@ impl VoiceApp {
             enabled: self.busy.is_none(),
             tab_stop: self.panel.is_none(),
         };
-        div().flex_1().flex().flex_col().items_center().justify_center().gap_4().px_8()
-            .child(div().text_size(px(42.)).text_color(rgb(theme.secondary)).child("♪"))
-            .child(div().text_size(px(21.)).font_weight(gpui::FontWeight::MEDIUM).child("Add a vocal reference"))
-            .child(label(theme,"The recording of the vocal part you want to learn."))
-            .child(div().mt_3().flex().gap_3()
-                .child(button(controls,"import-first","Import Vocal Reference…",true,cx,|a,w,c|a.choose_import(TrackRole::Target,w,c)))
-                .child(button(controls,"open-project","Open Project…",false,cx,|a,w,c|a.choose_open(w,c))))
-            .child(label(theme,"or drop a recording into this window"))
-            .child(div().mt_5().max_w(px(420.)).text_center().text_size(px(12.)).text_color(rgb(theme.secondary))
-                .child("Accompaniment is optional music to sing along with. Add it from the File menu."))
+        let mut files = div().flex().flex_col().gap_5();
+        for role in [TrackRole::Target, TrackRole::Backing] {
+            let reference = role == TrackRole::Target;
+            let path = if reference {
+                self.setup_reference.as_ref()
+            } else {
+                self.setup_accompaniment.as_ref()
+            };
+            let title = if reference {
+                "Vocal reference"
+            } else {
+                "Accompaniment"
+            };
+            let name = path
+                .and_then(|path| path.file_name())
+                .map(|name| name.to_string_lossy().into_owned());
+            files = files.child(
+                div()
+                    .id(if reference {
+                        "setup-reference"
+                    } else {
+                        "setup-accompaniment"
+                    })
+                    .p_4()
+                    .rounded(px(8.))
+                    .border_1()
+                    .border_color(rgb(theme.separator))
+                    .bg(rgb(theme.content))
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .on_drop(cx.listener(move |a, paths: &ExternalPaths, w, c| {
+                        if let Some(path) = paths.paths().first() {
+                            if path.extension().is_some_and(|ext| ext == "voice") {
+                                a.request_document_action(DocumentIntent::Open(path.clone()), w, c);
+                            } else if reference {
+                                a.setup_reference = Some(path.clone());
+                            } else {
+                                a.setup_accompaniment = Some(path.clone());
+                            }
+                            c.stop_propagation();
+                            c.notify();
+                        }
+                    }))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .gap_4()
+                            .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(title))
+                            .child(label(
+                                theme,
+                                if reference { "Required" } else { "Optional" },
+                            )),
+                    )
+                    .child(label(
+                        theme,
+                        if reference {
+                            "The recorded vocal part you want to learn."
+                        } else {
+                            "Music to sing along with."
+                        },
+                    ))
+                    .when(name.is_some(), |d| {
+                        d.child(
+                            div()
+                                .text_size(px(13.))
+                                .overflow_hidden()
+                                .child(name.clone().unwrap_or_default()),
+                        )
+                    })
+                    .child(
+                        div()
+                            .mt_1()
+                            .flex()
+                            .gap_2()
+                            .child(button(
+                                controls,
+                                if reference {
+                                    "choose-setup-reference"
+                                } else {
+                                    "choose-setup-accompaniment"
+                                },
+                                if path.is_some() {
+                                    "Replace audio…"
+                                } else {
+                                    "Choose audio…"
+                                },
+                                false,
+                                cx,
+                                move |a, w, c| a.choose_setup_audio(role, w, c),
+                            ))
+                            .when(path.is_some(), |d| {
+                                d.child(button(
+                                    controls,
+                                    if reference {
+                                        "clear-setup-reference"
+                                    } else {
+                                        "clear-setup-accompaniment"
+                                    },
+                                    "Remove",
+                                    false,
+                                    cx,
+                                    move |a, _, _| a.clear_setup_audio(role),
+                                ))
+                            }),
+                    ),
+            );
+        }
+        div().id("setup-scroll").flex_1().min_h_0().overflow_y_scroll().p_8().flex().items_center().justify_center()
+            .child(div().w(px(620.)).max_w_full().flex().flex_col().gap_5()
+                .child(div().text_size(px(21.)).font_weight(gpui::FontWeight::MEDIUM).child("Prepare a practice session"))
+                .child(files)
+                .child(div().flex().items_center().justify_between().gap_3().child(label(theme,"Vocal reference contains"))
+                    .child(div().flex().gap_2().child(button(controls,"setup-mono","One voice",self.mode==AnalysisMode::Monophonic,cx,|a,_,_|a.mode=AnalysisMode::Monophonic)).child(button(controls,"setup-poly","Several voices or notes",self.mode==AnalysisMode::Polyphonic,cx,|a,_,_|a.mode=AnalysisMode::Polyphonic))))
+                .child(div().flex().items_center().justify_between().gap_3().child(button(controls,"setup-open","Open Project…",false,cx,|a,w,c|a.choose_open(w,c))).child(button(controls.enabled(self.setup_reference.is_some()),"continue-setup","Continue",true,cx,|a,w,c|a.start_setup(w,c))))
+                .child(label(theme,"You can drop recordings into either audio field. Nothing is analyzed until Continue.")))
     }
     fn workspace_view(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         let theme = Theme::for_window(window);
@@ -136,14 +244,42 @@ impl VoiceApp {
             enabled: self.busy.is_none() && self.panel.is_none(),
             tab_stop: self.panel.is_none(),
         };
+        let replay = self
+            .replaying_take
+            .as_deref()
+            .and_then(|id| self.doc().history.iter().find(|take| take.id == id))
+            .filter(|take| {
+                self.doc()
+                    .target
+                    .as_ref()
+                    .is_some_and(|track| track.id == take.target_id)
+            });
         let target_now = scoring::pitch_at(&self.selected.frames, self.cursor);
-        let live = self.live.filter(|f| self.input_running && f.voiced());
+        let live = if let Some(take) = replay {
+            scoring::pitch_at(&take.trace, self.cursor)
+        } else {
+            self.live.filter(|f| self.input_running && f.voiced())
+        };
         let reference_note = target_now.map_or("—".into(), |f| note_name(f.midi));
         let live_note = live.map_or("—".into(), |f| note_name(f.midi));
         let cents = live.and_then(|f| target_now.map(|t| (f.midi - t.midi) * 100.));
-        let tuning = cents.map_or("Waiting for your voice".into(), |v| {
-            format!("{v:+.0} cents")
-        });
+        let tuning = cents.map_or(
+            if target_now.is_some() && self.input_running {
+                "No voice detected".into()
+            } else {
+                "—".into()
+            },
+            |value| {
+                format!(
+                    "{} · {value:+.0} cents",
+                    if value.abs() <= self.doc().settings.tolerance_cents {
+                        "In tune"
+                    } else {
+                        "Out of tune"
+                    }
+                )
+            },
+        );
         let first = self
             .selected
             .notes
@@ -163,7 +299,20 @@ impl VoiceApp {
             max_note_duration: self.max_note_duration,
             target: self.target.clone(),
             selected: self.selected.clone(),
-            trace: Arc::new(self.trace.iter().copied().collect()),
+            trace: Arc::new(if let Some(take) = replay {
+                let first = take
+                    .trace
+                    .partition_point(|f| f.time < self.view_start - 1.0);
+                take.trace[first..]
+                    .iter()
+                    .take_while(|f| {
+                        f.time <= self.view_start + self.doc().transport.visible_seconds + 0.1
+                    })
+                    .copied()
+                    .collect()
+            } else {
+                self.trace.iter().copied().collect()
+            }),
             cursor: self.cursor,
             start: self.view_start,
             seconds: self.doc().transport.visible_seconds,
@@ -274,21 +423,27 @@ impl VoiceApp {
                     .child(button(
                         controls,
                         "play",
-                        if self.play_pending {
+                        if self.replaying_take.is_some() {
+                            "Stop listening"
+                        } else if self.play_pending {
                             "Cancel start"
                         } else if self.playing() {
                             "Pause"
                         } else {
                             "Play"
                         },
-                        self.playing(),
+                        self.playing() || self.replaying_take.is_some(),
                         cx,
                         |a, _, _| a.toggle_play(),
                     ))
                     .child(button(
-                        controls,
+                        controls.enabled(!self.recording_active() && !self.recording_pending()),
                         "loop",
-                        "Loop",
+                        if self.recording_active() && self.doc().transport.loop_enabled {
+                            "Loop paused"
+                        } else {
+                            "Loop"
+                        },
                         self.doc().transport.loop_enabled,
                         cx,
                         |a, _, _| {
@@ -310,7 +465,7 @@ impl VoiceApp {
                     .items_center()
                     .gap_2()
                     .child(button(
-                        controls,
+                        controls.enabled(!self.recording_active() && !self.recording_pending()),
                         "set-a",
                         format!("A {}", clock(self.doc().transport.loop_start)),
                         false,
@@ -326,7 +481,7 @@ impl VoiceApp {
                         },
                     ))
                     .child(button(
-                        controls,
+                        controls.enabled(!self.recording_active() && !self.recording_pending()),
                         "set-b",
                         format!("B {}", clock(self.doc().transport.loop_end)),
                         false,
@@ -346,25 +501,39 @@ impl VoiceApp {
                     .items_center()
                     .gap_2()
                     .child(button(
-                        controls.enabled(self.engine.is_some() && !self.permission_pending),
-                        "mic",
-                        if self.permission_pending {
-                            "Requesting access…"
-                        } else if self.input_pending {
-                            "Cancel microphone"
-                        } else if self.input_running {
-                            "Microphone on"
+                        Controls {
+                            theme: Theme {
+                                accent: theme.recording,
+                                ..theme
+                            },
+                            ..controls
+                        }
+                        .enabled(self.replaying_take.is_none() && !self.recording_finalizing()),
+                        "toolbar-record",
+                        if self.recording_finalizing() {
+                            "Saving take…"
+                        } else if self.recording_active() {
+                            "Stop recording"
+                        } else if self.recording_pending() {
+                            "Cancel recording"
                         } else {
-                            "Microphone off"
+                            "Record"
                         },
-                        self.input_running,
+                        self.recording_active(),
                         cx,
-                        |a, w, c| a.toggle_input(w, c),
+                        |a, w, c| a.toggle_record(w, c),
                     ))
-                    .child(button(controls, "mix", "Mix…", false, cx, |a, w, _| {
-                        a.panel = Some(Panel::Mix);
-                        a.focus.focus(w);
-                    }))
+                    .child(button(
+                        controls,
+                        "mix",
+                        "Mixer",
+                        self.sidebar_visible,
+                        cx,
+                        |a, _, _| {
+                            a.sidebar_visible = !a.sidebar_visible;
+                            a.mixer_ui.dismiss();
+                        },
+                    ))
                     .child(button(
                         controls,
                         "reference-review",
@@ -446,21 +615,50 @@ impl VoiceApp {
                         a.changed();
                     })),
             );
-        let score = if !self.score_ready() {
+        let score = if let Some(take) = replay {
+            if take.evaluated_seconds > 0.0 {
+                format!(
+                    "Recorded result: in tune {:.0}% · out of tune {:.0}% · missed {:.0}%",
+                    take.score,
+                    (take.coverage - take.score).max(0.0),
+                    (100.0 - take.coverage).max(0.0)
+                )
+            } else {
+                "Recorded take · Not scored".into()
+            }
+        } else if !self.score_ready() {
             "Review the reference line before scoring".into()
-        } else if self.input_running && self.score.target_seconds > 0.0 {
+        } else if self.score.target_seconds > 0.0 {
             format!(
-                "{:.0}% in tune · {:.0}% coverage",
-                self.score.score, self.score.coverage
+                "In tune {:.0}% · Out of tune {:.0}% · Missed {:.0}%",
+                self.score.score,
+                (self.score.coverage - self.score.score).max(0.0),
+                (100.0 - self.score.coverage).max(0.0)
             )
         } else if self.permission_pending {
             "Waiting for microphone access…".into()
         } else if self.input_pending {
             "Connecting microphone…".into()
+        } else if let Some(take) = self.doc().history.iter().rev().find(|take| {
+            take.evaluated_seconds > 0.0
+                && self
+                    .doc()
+                    .target
+                    .as_ref()
+                    .is_some_and(|target| target.id == take.target_id)
+                && (self.target.mode != AnalysisMode::Polyphonic
+                    || take.reference_selection.as_ref() == Some(&self.target.selection))
+        }) {
+            format!(
+                "Last take: in tune {:.0}% · out {:.0}% · missed {:.0}%",
+                take.score,
+                (take.coverage - take.score).max(0.),
+                (100. - take.coverage).max(0.)
+            )
         } else if self.input_running {
-            "Listening".into()
+            "Play and sing to evaluate a take".into()
         } else {
-            "Microphone off".into()
+            "Microphone off · No take evaluated".into()
         };
         div()
             .flex_1()
@@ -514,130 +712,6 @@ impl VoiceApp {
         };
         let mut content = div().flex().flex_col().gap_3();
         match panel {
-            Panel::Mix => {
-                for role in [TrackRole::Target, TrackRole::Backing] {
-                    let track = self.doc().track(role);
-                    let present = track.is_some();
-                    let name = track.map_or(
-                        if role == TrackRole::Backing {
-                            "Not added · optional"
-                        } else {
-                            "No vocal reference"
-                        }
-                        .to_string(),
-                        |t| t.filename.clone(),
-                    );
-                    let (gain, muted) = if role == TrackRole::Target {
-                        (
-                            self.doc().settings.target_gain,
-                            self.doc().settings.target_muted,
-                        )
-                    } else {
-                        (
-                            self.doc().settings.backing_gain,
-                            self.doc().settings.backing_muted,
-                        )
-                    };
-                    let prefix = if role == TrackRole::Target {
-                        "Vocal reference"
-                    } else {
-                        "Accompaniment"
-                    };
-                    content = content
-                        .child(section(theme, prefix))
-                        .child(div().text_size(px(12.)).overflow_hidden().child(name))
-                        .child(button(
-                            controls,
-                            format!("import-{prefix}"),
-                            if present {
-                                "Replace audio…"
-                            } else {
-                                "Choose audio…"
-                            },
-                            false,
-                            cx,
-                            move |a, w, c| a.choose_import(role, w, c),
-                        ));
-                    if present {
-                        content = content
-                            .child(row(
-                                theme,
-                                "Level",
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap_2()
-                                    .child(button(
-                                        controls,
-                                        format!("down-{prefix}"),
-                                        "-",
-                                        false,
-                                        cx,
-                                        move |a, _, _| {
-                                            let s = &mut a.workspace.document.settings;
-                                            if role == TrackRole::Target {
-                                                s.target_gain = (s.target_gain - 0.05).max(0.);
-                                            } else {
-                                                s.backing_gain = (s.backing_gain - 0.05).max(0.);
-                                            }
-                                            a.update_mix();
-                                        },
-                                    ))
-                                    .child(format!("{:.0}%", gain * 100.))
-                                    .child(button(
-                                        controls,
-                                        format!("up-{prefix}"),
-                                        "+",
-                                        false,
-                                        cx,
-                                        move |a, _, _| {
-                                            let s = &mut a.workspace.document.settings;
-                                            if role == TrackRole::Target {
-                                                s.target_gain = (s.target_gain + 0.05).min(1.5);
-                                            } else {
-                                                s.backing_gain = (s.backing_gain + 0.05).min(1.5);
-                                            }
-                                            a.update_mix();
-                                        },
-                                    )),
-                            ))
-                            .child(button(
-                                controls,
-                                format!("mute-{prefix}"),
-                                if muted { "Muted" } else { "Mute" },
-                                muted,
-                                cx,
-                                move |a, _, _| {
-                                    let s = &mut a.workspace.document.settings;
-                                    if role == TrackRole::Target {
-                                        s.target_muted = !s.target_muted;
-                                    } else {
-                                        s.backing_muted = !s.backing_muted;
-                                    }
-                                    a.update_mix();
-                                },
-                            ));
-                        if role == TrackRole::Backing {
-                            content = content.child(button(
-                                controls,
-                                "remove-backing",
-                                "Remove accompaniment",
-                                false,
-                                cx,
-                                |a, _, _| {
-                                    a.pause();
-                                    a.workspace.document.backing = None;
-                                    a.workspace.media_paths.remove(&TrackRole::Backing);
-                                    a.changed();
-                                    if let Err(e) = a.sync_audio() {
-                                        a.fail(e);
-                                    }
-                                },
-                            ));
-                        }
-                    }
-                }
-            }
             Panel::Target => {
                 content = content
                     .child(label(theme, "The recording contains"))
@@ -1112,32 +1186,114 @@ impl VoiceApp {
                 }
                 for (i, take) in self.doc().history.iter().enumerate().rev() {
                     let start = take.start;
-                    content = content
-                        .child(button(
-                            controls,
-                            format!("take-{i}"),
-                            format!(
-                                "Take {} · {:.0}% in tune · {}",
-                                i + 1,
-                                take.score,
-                                clock(start)
-                            ),
-                            false,
-                            cx,
-                            move |a, _, _| a.seek(start),
-                        ))
-                        .child(label(
-                            theme,
-                            format!(
-                                "{:.0}% coverage · {:.1} seconds evaluated",
-                                take.coverage, take.evaluated_seconds
-                            ),
-                        ));
+                    let replay = self.replaying_take.as_deref() == Some(take.id.as_str());
+                    let available = self.take_audio_available(i)
+                        && self
+                            .doc()
+                            .target
+                            .as_ref()
+                            .is_some_and(|target| target.id == take.target_id);
+                    let same_reference = self
+                        .doc()
+                        .target
+                        .as_ref()
+                        .is_some_and(|target| target.id == take.target_id);
+                    let summary = if take.evaluated_seconds > 0.0 {
+                        format!(
+                            "In tune {:.0}% · Out of tune {:.0}% · Missed {:.0}%",
+                            take.score,
+                            (take.coverage - take.score).max(0.0),
+                            (100.0 - take.coverage).max(0.0)
+                        )
+                    } else {
+                        "Not scored".into()
+                    };
+                    let duration = take
+                        .recording
+                        .as_ref()
+                        .map_or(take.end - take.start, |recording| {
+                            recording.frames as f64 / recording.sample_rate.max(1) as f64
+                        });
+                    content = content.child(
+                        div()
+                            .py_3()
+                            .border_b_1()
+                            .border_color(rgb(theme.separator))
+                            .flex()
+                            .flex_col()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .justify_between()
+                                    .gap_3()
+                                    .child(
+                                        div()
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .child(format!("Take {} · {}", i + 1, clock(duration))),
+                                    )
+                                    .child(label(theme, format!("At {}", clock(start)))),
+                            )
+                            .child(label(theme, summary))
+                            .when(take.evaluated_seconds > 0.0, |d| {
+                                d.child(label(
+                                    theme,
+                                    format!(
+                                        "Coverage {:.0}% · {:.1} seconds evaluated",
+                                        take.coverage, take.evaluated_seconds
+                                    ),
+                                ))
+                            })
+                            .child(
+                                div()
+                                    .flex()
+                                    .gap_2()
+                                    .child(button(
+                                        controls.enabled(available),
+                                        format!("listen-take-{i}"),
+                                        if replay { "Stop listening" } else { "Listen" },
+                                        replay,
+                                        cx,
+                                        move |a, _, _| {
+                                            if replay {
+                                                a.stop_take_playback();
+                                            } else {
+                                                a.play_take(i);
+                                            }
+                                        },
+                                    ))
+                                    .child(button(
+                                        controls.enabled(same_reference),
+                                        format!("jump-take-{i}"),
+                                        "Go to position",
+                                        false,
+                                        cx,
+                                        move |a, _, _| a.seek(start),
+                                    )),
+                            )
+                            .when(!available, |d| {
+                                d.child(label(
+                                    theme,
+                                    if !same_reference {
+                                        "This take belongs to a different vocal reference."
+                                    } else if take.recording.is_none() {
+                                        "Pitch trace only · no audio was recorded for this take."
+                                    } else {
+                                        "The saved recording is unavailable."
+                                    },
+                                ))
+                            }),
+                    );
                 }
             }
             Panel::Help => {
                 for (key, description) in [
                     ("Space", "Play / pause"),
+                    ("R", "Record / stop a take"),
+                    ("Fader ↑ / ↓", "Change 1 dB (Shift: 0.1 dB)"),
+                    ("Fader Home / End", "Silence / +6 dB"),
+                    ("Fader Return or double-click", "Reset to 0 dB"),
                     ("Enter", "Return to start"),
                     ("Left / Right", "Seek one second"),
                     ("L", "Toggle loop"),
@@ -1184,7 +1340,6 @@ impl VoiceApp {
             tab_stop: true,
         };
         let title = match panel {
-            Panel::Mix => "Mix",
             Panel::Audio => "Audio Settings",
             Panel::Target => "Vocal reference",
             Panel::History => "Practice history",
@@ -1193,7 +1348,7 @@ impl VoiceApp {
         let mut content = self.panel_content(panel, window, cx);
         let viewport_height: f32 = window.viewport_size().height.into();
         let max_height = (viewport_height - 100.0).max(220.0);
-        if matches!(panel, Panel::Mix | Panel::Target) && self.doc().target.is_some() {
+        if panel == Panel::Target && self.doc().target.is_some() {
             content = content.child(section(theme, "Listen")).child(button(
                 controls,
                 "sheet-listen",
@@ -1313,7 +1468,16 @@ impl Render for VoiceApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::for_window(window);
         let body = if self.doc().target.is_some() {
-            self.workspace_view(window, cx).into_any_element()
+            div()
+                .flex()
+                .flex_1()
+                .min_h_0()
+                .min_w_0()
+                .child(self.workspace_view(window, cx))
+                .when(self.sidebar_visible, |d| {
+                    d.child(super::mixer::sidebar(self, window, cx))
+                })
+                .into_any_element()
         } else {
             self.empty(window, cx).into_any_element()
         };
@@ -1344,12 +1508,32 @@ impl Render for VoiceApp {
                         let path = path.clone();
                         a.request_document_action(DocumentIntent::Open(path), w, c);
                     } else {
-                        a.import_drop(paths.paths(), w, c);
+                        if a.doc().target.is_none() {
+                            a.setup_reference = paths.paths().first().cloned();
+                            a.setup_accompaniment = paths.paths().get(1).cloned();
+                            c.notify();
+                        } else {
+                            a.import_drop(paths.paths(), w, c);
+                        }
                     }
                 }
             }))
-            .on_key_down(cx.listener(|_, event: &gpui::KeyDownEvent, w, c| {
+            .on_mouse_move(cx.listener(|a, event: &gpui::MouseMoveEvent, _, c| {
+                if super::mixer::move_fader(a, event) {
+                    c.notify();
+                }
+            }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|a, _, _, _| super::mixer::end_drag(a)),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|a, _, _, _| super::mixer::end_drag(a)),
+            )
+            .on_key_down(cx.listener(|a, event: &gpui::KeyDownEvent, w, c| {
                 if event.keystroke.key == "tab" {
+                    a.mixer_ui.close_menu();
                     if event.keystroke.modifiers.shift {
                         w.focus_prev();
                     } else {
@@ -1359,16 +1543,13 @@ impl Render for VoiceApp {
                     c.stop_propagation();
                 }
             }))
-            .on_action(cx.listener(|a, _: &ShowMix, w, c| {
-                a.panel = if a.panel == Some(Panel::Mix) {
-                    None
-                } else {
-                    Some(Panel::Mix)
-                };
-                a.focus.focus(w);
+            .on_action(cx.listener(|a, _: &ShowMix, _, c| {
+                a.sidebar_visible = !a.sidebar_visible;
+                a.mixer_ui.dismiss();
                 c.notify();
             }))
             .on_action(cx.listener(|a, _: &ShowTarget, w, c| {
+                a.mixer_ui.dismiss();
                 a.panel = if a.panel == Some(Panel::Target) {
                     None
                 } else {
@@ -1379,6 +1560,7 @@ impl Render for VoiceApp {
             }))
             .on_action(cx.listener(|a, _: &ShowAudio, w, c| a.show_audio_settings(w, c)))
             .on_action(cx.listener(|a, _: &ShowHistory, w, c| {
+                a.mixer_ui.dismiss();
                 a.panel = if a.panel == Some(Panel::History) {
                     None
                 } else {
@@ -1388,6 +1570,7 @@ impl Render for VoiceApp {
                 c.notify();
             }))
             .on_action(cx.listener(|a, _: &ShowHelp, w, c| {
+                a.mixer_ui.dismiss();
                 a.panel = if a.panel == Some(Panel::Help) {
                     None
                 } else {
@@ -1417,6 +1600,7 @@ impl Render for VoiceApp {
                 a.choose_import(TrackRole::Backing, w, c)
             }))
             .on_action(cx.listener(|a, _: &ToggleMicrophone, w, c| a.toggle_input(w, c)))
+            .on_action(cx.listener(|a, _: &ToggleRecording, w, c| a.toggle_record(w, c)))
             .on_action(cx.listener(|a, _: &ToggleMonitoring, _, _| a.toggle_monitoring()))
             .on_action(cx.listener(|a, _: &CloseDocument, w, c| a.close_document(w, c)))
             .on_action(cx.listener(|a, _: &Quit, w, c| a.quit(w, c)))
@@ -1431,13 +1615,16 @@ impl Render for VoiceApp {
                 }
             }))
             .on_action(cx.listener(|a, _: &ToggleLoop, _, _| {
-                if a.panel.is_none() {
+                if a.panel.is_none() && !a.recording_active() && !a.recording_pending() {
                     a.workspace.document.transport.loop_enabled = !a.doc().transport.loop_enabled;
                     a.update_loop();
                 }
             }))
             .on_action(cx.listener(|a, _: &ClosePanel, w, _| {
-                a.panel = None;
+                if !a.mixer_ui.close_menu() {
+                    a.panel = None;
+                }
+                super::mixer::end_drag(a);
                 a.focus.focus(w);
             }))
             .child(body);
@@ -1495,5 +1682,6 @@ impl Render for VoiceApp {
             );
         }
         root.child(self.panel_view(window, cx))
+            .child(super::mixer::popup(self, window, cx))
     }
 }

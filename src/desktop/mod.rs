@@ -1,8 +1,10 @@
 mod application;
 use application::install_menus;
 pub use application::run;
+mod mixer;
 mod platform;
 mod roll;
+mod session;
 mod settings;
 mod theme;
 mod views;
@@ -55,6 +57,7 @@ actions!(
         ImportAccompaniment,
         ToggleMicrophone,
         ToggleMonitoring,
+        ToggleRecording,
         CloseDocument,
         AboutVoice,
         HideVoice,
@@ -73,7 +76,6 @@ actions!(
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Panel {
-    Mix,
     Audio,
     Target,
     History,
@@ -166,6 +168,23 @@ pub struct VoiceApp {
     native_document_state: Option<(Option<PathBuf>, bool, String)>,
     audio_settings_window: Option<WindowHandle<settings::AudioSettingsWindow>>,
     menus_need_refresh: bool,
+    setup_reference: Option<PathBuf>,
+    setup_accompaniment: Option<PathBuf>,
+    sidebar_visible: bool,
+    mixer_ui: mixer::MixerUi,
+    audio_preferences: AudioPreferences,
+    preference_writer: Option<crossbeam_channel::Sender<AudioPreferences>>,
+    preference_results: crossbeam_channel::Receiver<Result<(), String>>,
+    preferences_status: Option<String>,
+    reconnect_microphone: bool,
+    monitor_requested: bool,
+    record_requested: bool,
+    record_started_microphone: bool,
+    recording: Option<session::RecordingState>,
+    recording_status: Option<String>,
+    replaying_take: Option<String>,
+    replay_restore: Option<(f64, f64)>,
+    save_after_recording: Option<bool>,
 }
 
 impl VoiceApp {
@@ -175,8 +194,10 @@ impl VoiceApp {
         open_requests: crossbeam_channel::Receiver<Vec<String>>,
     ) -> Self {
         let (tx, rx) = crossbeam_channel::unbounded();
-        let (engine, notice) = match AudioController::new() {
-            Ok(e) => (Some(e), None),
+        let (audio_preferences, preference_writer, preference_results, preference_notice) =
+            session::load_preferences();
+        let (engine, notice) = match AudioController::new_with_preferences(&audio_preferences) {
+            Ok(e) => (Some(e), preference_notice),
             Err(e) => (None, Some(format!("Audio unavailable: {e:#}"))),
         };
         let devices = DeviceInventory::default();
@@ -211,6 +232,10 @@ impl VoiceApp {
                         || app.audio_starting
                         || app.audio_configuring
                         || app.input_running
+                        || app.recording.is_some()
+                        || app.record_requested
+                        || app.replaying_take.is_some()
+                        || !app.preference_results.is_empty()
                         || app.busy.is_some()
                         || !app.rx.is_empty()
                         || !app.open_requests.is_empty()
@@ -238,8 +263,10 @@ impl VoiceApp {
             }
         })
         .detach();
+        let mut workspace = ProjectWorkspace::new();
+        workspace.document.settings.audio = audio_preferences.clone();
         Self {
-            workspace: ProjectWorkspace::new(),
+            workspace,
             engine,
             devices,
             focus,
@@ -291,6 +318,23 @@ impl VoiceApp {
             native_document_state: None,
             audio_settings_window: None,
             menus_need_refresh: false,
+            setup_reference: None,
+            setup_accompaniment: None,
+            sidebar_visible: true,
+            mixer_ui: mixer::MixerUi::default(),
+            audio_preferences,
+            preference_writer,
+            preference_results,
+            preferences_status: None,
+            reconnect_microphone: false,
+            monitor_requested: false,
+            record_requested: false,
+            record_started_microphone: false,
+            recording: None,
+            recording_status: None,
+            replaying_take: None,
+            replay_restore: None,
+            save_after_recording: None,
         }
     }
     fn doc(&self) -> &VoiceProject {
@@ -343,6 +387,7 @@ impl VoiceApp {
                 if s.target_muted { 0. } else { s.target_gain },
                 if s.backing_muted { 0. } else { s.backing_gain },
             );
+            e.set_monitor_gain(s.monitor_gain);
             let t = &self.workspace.document.transport;
             e.set_loop(t.loop_start, t.loop_end, t.loop_enabled);
             e.seek(self.cursor)?;
@@ -376,6 +421,8 @@ impl VoiceApp {
                 self.audio_error_seq = status.error_seq;
                 self.input_pending = false;
                 self.play_pending = false;
+                self.record_requested = false;
+                self.reconnect_microphone = false;
                 if let Some(error) = status.error {
                     self.fail(error);
                 }
@@ -385,6 +432,13 @@ impl VoiceApp {
         if self.input_pending && actual_input {
             self.input_pending = false;
             self.input_running = true;
+            if self.monitor_requested {
+                self.workspace.document.settings.audio.monitor = true;
+                if let Some(engine) = &self.engine {
+                    engine.set_monitor(true);
+                }
+                self.monitor_requested = false;
+            }
             if self.playing() {
                 self.begin_take(self.cursor);
             }
@@ -433,6 +487,7 @@ impl VoiceApp {
                     self.pause();
                     self.stop_input();
                     self.workspace = *workspace;
+                    self.workspace.document.settings.audio = self.audio_preferences.clone();
                     if let Some(path) = &self.workspace.file_path {
                         platform::note_recent_document(path);
                         self.menus_need_refresh = true;
@@ -452,12 +507,6 @@ impl VoiceApp {
                     self.dirty = false;
                     self.revision += 1;
                     self.panel = None;
-                    if let Some(e) = self.engine.as_mut()
-                        && let Err(error) =
-                            e.configure_audio(&self.workspace.document.settings.audio)
-                    {
-                        self.fail(format!("Project opened. Audio needs attention: {error:#}"));
-                    }
                     if let Err(e) = self.sync_audio() {
                         self.fail(format!("Project opened. Playback unavailable: {e:#}"));
                     }
@@ -577,7 +626,7 @@ impl VoiceApp {
         if !playing && was_active {
             self.finish_take();
         }
-        changed
+        changed | self.tick_session()
     }
     fn begin_take(&mut self, at: f64) {
         if self.input_running && self.score_ready() {
@@ -612,14 +661,27 @@ impl VoiceApp {
                 coverage: score.coverage,
                 evaluated_seconds: score.target_seconds,
                 trace: std::mem::take(&mut self.take_trace),
+                recording: None,
+                reference_selection: Some(self.target.selection.clone()),
             };
-            self.workspace.document.history.push(take);
-            self.changed();
+            if let Some(recording) = &mut self.recording {
+                let id = recording.take.id.clone();
+                let start = recording.take.start;
+                let started_at_ms = recording.take.started_at_ms;
+                recording.take = take;
+                recording.take.id = id;
+                recording.take.start = start;
+                recording.take.started_at_ms = started_at_ms;
+            } else {
+                self.workspace.document.history.push(take);
+                self.changed();
+            }
         } else {
             self.take_trace.clear();
         }
     }
     fn pause(&mut self) {
+        self.stop_take_playback();
         let was_playing = self.playing() || self.was_playing;
         if let Some(e) = &self.engine {
             let position = e.pause();
@@ -630,8 +692,13 @@ impl VoiceApp {
         self.play_pending = false;
         self.was_playing = false;
         self.finish_take();
+        self.stop_recording_capture();
     }
     fn toggle_play(&mut self) {
+        if self.replaying_take.is_some() {
+            self.stop_take_playback();
+            return;
+        }
         if self.playing() || self.play_pending {
             self.pause();
             return;
@@ -655,6 +722,10 @@ impl VoiceApp {
         }
     }
     fn seek(&mut self, time: f64) {
+        if self.recording_active() || self.record_requested {
+            self.pause();
+        }
+        self.stop_take_playback();
         let playing = self.playing();
         self.finish_take();
         self.cursor = time.clamp(0., self.doc().duration());
@@ -739,7 +810,17 @@ impl VoiceApp {
         });
     }
     fn import_drop(&mut self, paths: &[PathBuf], window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy.is_some() || self.native_dialog_open {
+        if self.busy.is_some()
+            || self.native_dialog_open
+            || self.recording.is_some()
+            || self.record_requested
+        {
+            return;
+        }
+        if self.doc().target.is_none() {
+            self.setup_reference = paths.first().cloned();
+            self.setup_accompaniment = paths.get(1).cloned();
+            cx.notify();
             return;
         }
         if let Some(path) = paths.first() {
@@ -779,7 +860,15 @@ impl VoiceApp {
         .detach();
     }
     fn choose_import(&mut self, role: TrackRole, window: &mut Window, cx: &mut Context<Self>) {
-        if self.busy.is_some() || self.native_dialog_open {
+        if self.busy.is_some()
+            || self.native_dialog_open
+            || self.recording.is_some()
+            || self.record_requested
+        {
+            return;
+        }
+        if self.doc().target.is_none() {
+            self.choose_setup_audio(role, window, cx);
             return;
         }
         self.native_dialog_open = true;
@@ -854,13 +943,15 @@ impl VoiceApp {
             document.title = name.to_string_lossy().into_owned();
         }
         let paths = self.workspace.media_paths.clone();
+        let recordings = self.workspace.recording_paths.clone();
         let revision = self.revision;
         std::thread::spawn(move || {
-            let result = project::save_project(&document, &paths, &path)
-                .map(|_| JobResult::Saved { path, revision })
-                .unwrap_or_else(|error| {
-                    JobResult::Failed(format!("Couldn't save the project: {error:#}"))
-                });
+            let result =
+                project::save_project_with_recordings(&document, &paths, &recordings, &path)
+                    .map(|_| JobResult::Saved { path, revision })
+                    .unwrap_or_else(|error| {
+                        JobResult::Failed(format!("Couldn't save the project: {error:#}"))
+                    });
             let _ = tx.send(result);
         });
     }
@@ -869,6 +960,10 @@ impl VoiceApp {
             return;
         }
         self.pause();
+        if self.recording.is_some() {
+            self.save_after_recording = Some(force);
+            return;
+        }
         if !force && let Some(path) = self.workspace.file_path.clone() {
             self.save_to(path);
             return;
@@ -919,6 +1014,11 @@ impl VoiceApp {
         if self.native_dialog_open {
             return;
         }
+        if self.recording.is_some() || self.record_requested {
+            self.pause();
+            self.deferred_document_intent = Some(intent);
+            return;
+        }
         if self.busy.is_some() {
             self.deferred_document_intent = Some(intent);
             if self
@@ -935,7 +1035,11 @@ impl VoiceApp {
         self.perform_document_step(step, window, cx);
     }
     fn advance_document_lifecycle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.native_dialog_open || self.busy.is_some() {
+        if self.native_dialog_open || self.busy.is_some() || self.recording.is_some() {
+            return;
+        }
+        if let Some(force) = self.save_after_recording.take() {
+            self.choose_save(force, window, cx);
             return;
         }
         if let Some(step) = self.deferred_document_step.take() {
@@ -995,6 +1099,10 @@ impl VoiceApp {
                     self.pause();
                     self.stop_input();
                     self.workspace = ProjectWorkspace::new();
+                    self.workspace.document.settings.audio = self.audio_preferences.clone();
+                    self.setup_reference = None;
+                    self.setup_accompaniment = None;
+                    self.recording_status = None;
                     self.cursor = 0.;
                     self.view_start = 0.;
                     self.dirty = false;
@@ -1002,14 +1110,6 @@ impl VoiceApp {
                     self.notice = None;
                     self.mode = AnalysisMode::Monophonic;
                     self.refresh_analysis();
-                    if let Some(engine) = self.engine.as_mut()
-                        && let Err(error) =
-                            engine.configure_audio(&self.workspace.document.settings.audio)
-                    {
-                        self.fail(format!(
-                            "New project created. Audio needs attention: {error:#}"
-                        ));
-                    }
                     if let Err(error) = self.sync_audio() {
                         self.fail(error);
                     }
@@ -1088,6 +1188,7 @@ impl VoiceApp {
         });
     }
     fn stop_input(&mut self) {
+        self.stop_recording_capture();
         if let Some(e) = self.engine.as_mut() {
             e.stop_input();
         }
@@ -1095,6 +1196,8 @@ impl VoiceApp {
         self.input_pending = false;
         self.microphone_requested = false;
         self.microphone_explanation_pending = false;
+        self.monitor_requested = false;
+        self.reconnect_microphone = false;
         self.workspace.document.settings.audio.monitor = false;
         self.live = None;
         self.finish_take();
@@ -1106,6 +1209,9 @@ impl VoiceApp {
         }
         if self.permission_pending {
             self.microphone_requested = false;
+            self.record_requested = false;
+            self.monitor_requested = false;
+            self.reconnect_microphone = false;
             return;
         }
         self.microphone_authorization = platform::microphone_authorization();
@@ -1128,7 +1234,10 @@ impl VoiceApp {
                         ) {
                             MicrophoneRequestOutcome::Start => app.start_authorized_input(),
                             MicrophoneRequestOutcome::Explain => {
-                                app.microphone_explanation_pending = true
+                                app.microphone_explanation_pending = true;
+                                app.record_requested = false;
+                                app.monitor_requested = false;
+                                app.reconnect_microphone = false;
                             }
                             MicrophoneRequestOutcome::None => {}
                         }
@@ -1137,7 +1246,12 @@ impl VoiceApp {
                 })
                 .detach();
             }
-            _ => self.explain_microphone_access(window, cx),
+            _ => {
+                self.record_requested = false;
+                self.reconnect_microphone = false;
+                self.monitor_requested = false;
+                self.explain_microphone_access(window, cx);
+            }
         }
     }
     fn explain_microphone_access(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1164,10 +1278,18 @@ impl VoiceApp {
     }
     fn start_authorized_input(&mut self) {
         self.workspace.document.settings.audio.monitor = false;
+        if self.audio_starting || self.audio_configuring {
+            self.reconnect_microphone = true;
+            return;
+        }
         if let Some(engine) = self.engine.as_mut() {
             match engine.start_input(&self.workspace.document.settings.audio) {
                 Ok(()) => self.input_pending = true,
-                Err(error) => self.fail(format!("Couldn't start the microphone: {error:#}")),
+                Err(error) => {
+                    self.record_requested = false;
+                    self.monitor_requested = false;
+                    self.fail(format!("Couldn't start the microphone: {error:#}"));
+                }
             }
         } else {
             self.fail("No audio device is available. Open Audio Settings to reconnect.");
@@ -1185,10 +1307,12 @@ impl VoiceApp {
         self.changed();
     }
     fn apply_audio(&mut self) {
+        let reconnect = self.input_running || self.input_pending || self.reconnect_microphone;
+        let monitor = self.doc().settings.audio.monitor || self.monitor_requested;
         self.pause();
         self.stop_input();
         if self.engine.is_none() {
-            match AudioController::new() {
+            match AudioController::new_with_preferences(&self.workspace.document.settings.audio) {
                 Ok(e) => self.engine = Some(e),
                 Err(e) => {
                     self.fail(e);
@@ -1206,6 +1330,9 @@ impl VoiceApp {
             self.fail(e);
             return;
         }
+        self.reconnect_microphone = reconnect;
+        self.monitor_requested = monitor;
+        self.persist_audio_preferences();
         self.changed();
         self.error = false;
         self.notice = None;
@@ -1221,6 +1348,9 @@ impl VoiceApp {
         self.changed();
     }
     fn update_loop(&mut self) {
+        if self.recording_active() || self.record_requested {
+            self.pause();
+        }
         let playing = self.playing();
         self.finish_take();
         self.trace.clear();

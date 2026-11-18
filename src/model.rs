@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const PROJECT_VERSION: u32 = 1;
+pub const PROJECT_VERSION: u32 = 2;
 pub fn timestamp_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -81,7 +81,7 @@ pub enum LinePolicy {
     Highest,
     Lowest,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TargetSelection {
     pub policy: LinePolicy,
     pub min_midi: u8,
@@ -130,6 +130,7 @@ pub struct MediaTrack {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AudioPreferences {
     pub input_device: Option<String>,
     pub output_device: Option<String>,
@@ -156,6 +157,8 @@ impl Default for AudioPreferences {
 pub struct StudioSettings {
     pub target_gain: f32,
     pub backing_gain: f32,
+    #[serde(default = "one")]
+    pub monitor_gain: f32,
     pub target_muted: bool,
     pub backing_muted: bool,
     pub tolerance_cents: f32,
@@ -166,6 +169,7 @@ impl Default for StudioSettings {
         Self {
             target_gain: 0.65,
             backing_gain: 0.75,
+            monitor_gain: 1.0,
             target_muted: false,
             backing_muted: false,
             tolerance_cents: 50.0,
@@ -193,6 +197,22 @@ impl Default for TransportSettings {
     }
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TakeRecording {
+    pub archive_path: String,
+    pub sample_rate: u32,
+    pub frames: u64,
+}
+impl TakeRecording {
+    pub fn duration(&self) -> f64 {
+        if self.sample_rate == 0 {
+            0.0
+        } else {
+            self.frames as f64 / self.sample_rate as f64
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PracticeTake {
     pub id: String,
     pub started_at_ms: u64,
@@ -203,6 +223,10 @@ pub struct PracticeTake {
     pub coverage: f32,
     pub evaluated_seconds: f64,
     pub trace: Vec<PitchFrame>,
+    #[serde(default)]
+    pub reference_selection: Option<TargetSelection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording: Option<TakeRecording>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VoiceProject {

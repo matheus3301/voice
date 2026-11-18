@@ -1,7 +1,8 @@
 //! Self-contained project archives with streamed media and atomic replacement.
 
 use crate::model::{
-    AudioMetadata, MediaTrack, PROJECT_VERSION, PitchFrame, TrackRole, VoiceProject, timestamp_ms,
+    AudioMetadata, MediaTrack, PROJECT_VERSION, PitchFrame, TakeRecording, TrackRole, VoiceProject,
+    timestamp_ms,
 };
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
@@ -22,8 +23,10 @@ const TIME_EPSILON: f64 = 0.025;
 pub struct ProjectWorkspace {
     pub document: VoiceProject,
     pub media_paths: HashMap<TrackRole, PathBuf>,
+    pub recording_paths: HashMap<String, PathBuf>,
     pub file_path: Option<PathBuf>,
     _extracted: Option<TempDir>,
+    _recordings: Option<TempDir>,
 }
 
 impl ProjectWorkspace {
@@ -35,11 +38,41 @@ impl ProjectWorkspace {
         self.media_paths.insert(role, path.into());
     }
 
+    /// Allocate a destination whose directory lives as long as this workspace.
+    /// Bind the completed file in recording_paths only after capture succeeds.
+    pub fn recording_destination(&mut self, id: &str) -> Result<PathBuf> {
+        let archive_path = format!("recordings/{id}.wav");
+        safe_recording_path(&archive_path)?;
+        ensure!(
+            !id.is_empty() && !id.contains(['/', '\\', '\0', ':']) && id != "." && id != "..",
+            "Invalid practice take ID"
+        );
+        if self._recordings.is_none() {
+            self._recordings = Some(
+                tempfile::Builder::new()
+                    .prefix("voice-recordings-")
+                    .tempdir()
+                    .context("Create recording workspace")?,
+            );
+        }
+        let destination = self
+            ._recordings
+            .as_ref()
+            .unwrap()
+            .path()
+            .join(format!("{id}.wav"));
+        ensure!(
+            !destination.exists(),
+            "A recording already exists for take {id}"
+        );
+        Ok(destination)
+    }
+
     /// Commit document state only after the new archive has replaced its target.
     pub fn save(&mut self, path: &Path) -> Result<()> {
         let mut snapshot = self.document.clone();
         snapshot.modified_at_ms = timestamp_ms();
-        save_project(&snapshot, &self.media_paths, path)?;
+        save_project_with_recordings(&snapshot, &self.media_paths, &self.recording_paths, path)?;
         self.document = snapshot;
         self.file_path = Some(path.to_path_buf());
         Ok(())
@@ -87,13 +120,20 @@ impl ProjectWorkspace {
         let version: VersionHeader = serde_json::from_reader(archive.by_index(manifest_index)?)
             .context("Read project format version")?;
         ensure!(
-            version.format_version == PROJECT_VERSION,
-            "Unsupported project format version: {} (expected {})",
+            matches!(version.format_version, 1 | PROJECT_VERSION),
+            "Unsupported project format version: {} (supported: 1 through {})",
             version.format_version,
             PROJECT_VERSION
         );
-        let document: VoiceProject = serde_json::from_reader(archive.by_index(manifest_index)?)
+        let mut document: VoiceProject = serde_json::from_reader(archive.by_index(manifest_index)?)
             .context("Read project metadata")?;
+        if version.format_version == 1 {
+            ensure!(
+                document.history.iter().all(|take| take.recording.is_none()),
+                "Practice recordings require project format version 2"
+            );
+            document.format_version = PROJECT_VERSION;
+        }
         validate_document(&document)?;
 
         let extracted = tempfile::Builder::new()
@@ -105,41 +145,34 @@ impl ProjectWorkspace {
             let Some(track) = document.track(role) else {
                 continue;
             };
-            let index = *entries
-                .get(&track.archive_path)
-                .with_context(|| format!("Missing media asset: {}", track.archive_path))?;
-            let mut entry = archive.by_index(index)?;
-            ensure!(
-                !entry.is_dir() && entry.size() > 0,
-                "Media asset is empty or is a directory: {}",
-                track.archive_path
-            );
-            let relative = safe_media_path(&track.archive_path)?;
-            let destination = extracted.path().join(relative);
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).context("Create extracted media directory")?;
-            }
-            let mut output = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&destination)
-                .with_context(|| format!("Create extracted media {}", track.filename))?;
-            let expected = entry.size();
-            let copied = io::copy(&mut entry, &mut output)
-                .with_context(|| format!("Extract media {}", track.filename))?;
-            ensure!(
-                copied == expected,
-                "Incomplete media asset: {}",
-                track.archive_path
-            );
-            output.flush()?;
+            let destination = extract_asset(
+                &mut archive,
+                &entries,
+                extracted.path(),
+                &track.archive_path,
+            )?;
             media_paths.insert(role, destination);
+        }
+        let mut recording_paths = HashMap::new();
+        for take in &document.history {
+            if let Some(recording) = &take.recording {
+                let destination = extract_asset(
+                    &mut archive,
+                    &entries,
+                    extracted.path(),
+                    &recording.archive_path,
+                )?;
+                validate_recording_file(&destination, recording)?;
+                recording_paths.insert(recording.archive_path.clone(), destination);
+            }
         }
         Ok(Self {
             document,
             media_paths,
+            recording_paths,
             file_path: Some(path.to_path_buf()),
             _extracted: Some(extracted),
+            _recordings: None,
         })
     }
 }
@@ -150,6 +183,15 @@ impl ProjectWorkspace {
 pub fn save_project(
     document: &VoiceProject,
     media_paths: &HashMap<TrackRole, PathBuf>,
+    path: &Path,
+) -> Result<()> {
+    save_project_with_recordings(document, media_paths, &HashMap::new(), path)
+}
+
+pub fn save_project_with_recordings(
+    document: &VoiceProject,
+    media_paths: &HashMap<TrackRole, PathBuf>,
+    recording_paths: &HashMap<String, PathBuf>,
     path: &Path,
 ) -> Result<()> {
     validate_document(document)?;
@@ -200,6 +242,26 @@ pub fn save_project(
                 track.filename
             );
         }
+        for take in &document.history {
+            let Some(recording) = &take.recording else {
+                continue;
+            };
+            let source_path = recording_paths
+                .get(&recording.archive_path)
+                .with_context(|| format!("No local recording bound for take {}", take.id))?;
+            validate_recording_file(source_path, recording)?;
+            let file = File::open(source_path).context("Open practice recording")?;
+            let expected = file.metadata()?.len();
+            writer
+                .start_file(&recording.archive_path, media_options)
+                .context("Start practice recording entry")?;
+            let copied = io::copy(&mut BufReader::new(file), &mut writer)
+                .context("Copy practice recording")?;
+            ensure!(
+                copied == expected,
+                "Practice recording changed size while saving"
+            );
+        }
         writer
             .finish()
             .context("Finish project archive")?
@@ -221,6 +283,37 @@ pub fn save_project(
         let _ = directory.sync_all();
     }
     Ok(())
+}
+
+fn extract_asset(
+    archive: &mut ZipArchive<BufReader<File>>,
+    entries: &HashMap<String, usize>,
+    directory: &Path,
+    name: &str,
+) -> Result<PathBuf> {
+    let index = *entries
+        .get(name)
+        .with_context(|| format!("Missing media asset: {name}"))?;
+    let mut entry = archive.by_index(index)?;
+    ensure!(
+        !entry.is_dir() && entry.size() > 0,
+        "Media asset is empty or is a directory: {name}"
+    );
+    let destination = directory.join(safe_entry_path(name, false)?);
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).context("Create extracted media directory")?;
+    }
+    let mut output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&destination)
+        .with_context(|| format!("Create extracted media {name}"))?;
+    let expected = entry.size();
+    let copied =
+        io::copy(&mut entry, &mut output).with_context(|| format!("Extract media {name}"))?;
+    ensure!(copied == expected, "Incomplete media asset: {name}");
+    output.flush()?;
+    Ok(destination)
 }
 
 fn safe_entry_path(name: &str, directory: bool) -> Result<PathBuf> {
@@ -260,6 +353,28 @@ fn safe_media_path(name: &str) -> Result<PathBuf> {
         "Media must be stored under media/: {name}"
     );
     Ok(path)
+}
+
+fn safe_recording_path(name: &str) -> Result<PathBuf> {
+    let path = safe_entry_path(name, false)?;
+    ensure!(
+        name.starts_with("recordings/") && path.components().count() == 2 && name.ends_with(".wav"),
+        "Recordings must be WAV files directly under recordings/: {name}"
+    );
+    Ok(path)
+}
+
+/// Use the canonical bounded WAV/RF64 reader for the format also used by replay.
+fn validate_recording_file(path: &Path, recording: &TakeRecording) -> Result<()> {
+    let inspected = crate::recording::inspect_recording(path)
+        .context("Read practice recording PCM metadata")?;
+    ensure!(
+        inspected.frames > 0
+            && inspected.sample_rate == recording.sample_rate
+            && inspected.frames == recording.frames,
+        "Practice recording PCM metadata does not match the project"
+    );
+    Ok(())
 }
 
 fn finite(value: f64, label: &str) -> Result<()> {
@@ -378,6 +493,7 @@ fn validate_document(document: &VoiceProject) -> Result<()> {
     let settings = &document.settings;
     nonnegative(settings.target_gain as f64, "Vocal reference gain")?;
     nonnegative(settings.backing_gain as f64, "Accompaniment gain")?;
+    nonnegative(settings.monitor_gain as f64, "Your voice monitor gain")?;
     nonnegative(settings.audio.input_gain as f64, "Input gain")?;
     finite(settings.audio.latency_ms as f64, "Latency compensation")?;
     finite(settings.tolerance_cents as f64, "Pitch tolerance")?;
@@ -422,6 +538,28 @@ fn validate_document(document: &VoiceProject) -> Result<()> {
             "Evaluated practice duration",
         )?;
         validate_frames(&take.trace, take.start, take.end)?;
+        if let Some(recording) = &take.recording {
+            safe_recording_path(&recording.archive_path)?;
+            ensure!(
+                !take.id.is_empty()
+                    && !take.id.contains(['/', '\\', '\0', ':'])
+                    && take.id != "."
+                    && take.id != "..",
+                "Invalid recorded practice take ID"
+            );
+            ensure!(
+                recording.archive_path == format!("recordings/{}.wav", take.id),
+                "Recording path must match its practice take ID"
+            );
+            ensure!(
+                paths.insert(&recording.archive_path),
+                "Recording entries must have distinct paths"
+            );
+            ensure!(
+                recording.sample_rate > 0 && recording.frames > 0,
+                "Practice recording metadata must describe nonempty audio"
+            );
+        }
     }
     Ok(())
 }
@@ -517,6 +655,7 @@ mod tests {
         workspace.document.transport.loop_end = 1.75;
         workspace.document.transport.loop_enabled = true;
         workspace.document.history.push(PracticeTake {
+            reference_selection: None,
             id: "take-1".into(),
             started_at_ms: 1_000,
             target_id: "test-Target".into(),
@@ -526,6 +665,7 @@ mod tests {
             coverage: 95.0,
             evaluated_seconds: 1.25,
             trace: vec![frame(0.5), frame(1.0)],
+            recording: None,
         });
         (directory, workspace)
     }
@@ -878,6 +1018,266 @@ mod tests {
         value["extra_information"] = serde_json::json!({"future": "ignored"});
         write_archive(&path, &serde_json::to_vec(&value).unwrap(), &[]);
         assert!(ProjectWorkspace::open(&path).is_ok());
+    }
+
+    fn recording_wav(sample_rate: u32, samples: &[i32], rf64: bool) -> Vec<u8> {
+        let data_size = samples.len() as u64 * 4;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(if rf64 { b"RF64" } else { b"RIFF" });
+        bytes.extend_from_slice(
+            &(if rf64 {
+                u32::MAX
+            } else {
+                (36 + data_size) as u32
+            })
+            .to_le_bytes(),
+        );
+        bytes.extend_from_slice(b"WAVE");
+        if rf64 {
+            bytes.extend_from_slice(b"ds64");
+            bytes.extend_from_slice(&28_u32.to_le_bytes());
+            bytes.extend_from_slice(&(72 + data_size).to_le_bytes());
+            bytes.extend_from_slice(&data_size.to_le_bytes());
+            bytes.extend_from_slice(&(samples.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(&0_u32.to_le_bytes());
+        }
+        bytes.extend_from_slice(b"fmt ");
+        bytes.extend_from_slice(&16_u32.to_le_bytes());
+        bytes.extend_from_slice(&1_u16.to_le_bytes());
+        bytes.extend_from_slice(&1_u16.to_le_bytes());
+        bytes.extend_from_slice(&sample_rate.to_le_bytes());
+        bytes.extend_from_slice(&(sample_rate * 4).to_le_bytes());
+        bytes.extend_from_slice(&4_u16.to_le_bytes());
+        bytes.extend_from_slice(&32_u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&(if rf64 { u32::MAX } else { data_size as u32 }).to_le_bytes());
+        for sample in samples {
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+        bytes
+    }
+
+    fn add_recording(workspace: &mut ProjectWorkspace, rf64: bool) -> Vec<u8> {
+        let path = workspace.recording_destination("take-1").unwrap();
+        let bytes = recording_wav(48_000, &[0, i32::MAX, i32::MIN, 1_234_567], rf64);
+        fs::write(&path, &bytes).unwrap();
+        let recording = TakeRecording {
+            archive_path: "recordings/take-1.wav".into(),
+            sample_rate: 48_000,
+            frames: 4,
+        };
+        workspace
+            .recording_paths
+            .insert(recording.archive_path.clone(), path);
+        workspace.document.history[0].recording = Some(recording);
+        workspace.document.settings.monitor_gain = 0.35;
+        bytes
+    }
+
+    #[test]
+    fn recordings_round_trip_exact_pcm_and_keep_owned_extraction_alive() {
+        for rf64 in [false, true] {
+            let (directory, mut workspace) = fixture();
+            let bytes = add_recording(&mut workspace, rf64);
+            let destination = directory.path().join("recorded.voice");
+            workspace.save(&destination).unwrap();
+            let expected = serde_json::to_value(&workspace.document).unwrap();
+            drop(workspace);
+            let reopened = ProjectWorkspace::open(&destination).unwrap();
+            assert_eq!(serde_json::to_value(&reopened.document).unwrap(), expected);
+            assert_eq!(reopened.document.settings.monitor_gain, 0.35);
+            let recording = reopened.document.history[0].recording.as_ref().unwrap();
+            assert_eq!(recording.duration(), 4.0 / 48_000.0);
+            let path = reopened.recording_paths[&recording.archive_path].clone();
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+            let mut zip = ZipArchive::new(File::open(&destination).unwrap()).unwrap();
+            let recording_entry = zip.by_name(&recording.archive_path).unwrap();
+            assert_eq!(recording_entry.compression(), CompressionMethod::Stored);
+            let header_start = recording_entry.header_start();
+            drop(recording_entry);
+            drop(zip);
+            let mut archive_file = File::open(&destination).unwrap();
+            archive_file.seek(SeekFrom::Start(header_start)).unwrap();
+            let mut local_header = [0_u8; 30];
+            archive_file.read_exact(&mut local_header).unwrap();
+            assert_eq!(&local_header[18..26], &[0xff; 8]);
+            let next = directory.path().join("resaved.voice");
+            save_project_with_recordings(
+                &reopened.document,
+                &reopened.media_paths,
+                &reopened.recording_paths,
+                &next,
+            )
+            .unwrap();
+            assert!(ProjectWorkspace::open(&next).is_ok());
+            drop(reopened);
+            assert!(!path.exists());
+        }
+    }
+
+    #[test]
+    fn version_one_projects_migrate_without_recordings_or_monitor_gain() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("legacy.voice");
+        let mut value = serde_json::to_value(VoiceProject::default()).unwrap();
+        value["format_version"] = serde_json::json!(1);
+        value["settings"]
+            .as_object_mut()
+            .unwrap()
+            .remove("monitor_gain");
+        value["history"] = serde_json::json!([{
+            "id":"old-take", "started_at_ms":0, "target_id":"old-target",
+            "start":0.0,"end":0.0,"score":0.0,"coverage":0.0,"evaluated_seconds":0.0,"trace":[]
+        }]);
+        write_archive(&path, &serde_json::to_vec(&value).unwrap(), &[]);
+        let mut opened = ProjectWorkspace::open(&path).unwrap();
+        assert_eq!(opened.document.format_version, 2);
+        assert_eq!(opened.document.settings.monitor_gain, 1.0);
+        assert!(opened.document.history[0].recording.is_none());
+        assert!(opened.recording_paths.is_empty());
+        opened.save(&path).unwrap();
+        let mut zip = ZipArchive::new(File::open(path).unwrap()).unwrap();
+        let manifest: VoiceProject =
+            serde_json::from_reader(zip.by_name(MANIFEST).unwrap()).unwrap();
+        assert_eq!(manifest.format_version, 2);
+    }
+
+    #[test]
+    fn missing_or_mismatched_recording_preserves_existing_destination() {
+        let (directory, mut workspace) = fixture();
+        let destination = directory.path().join("recorded.voice");
+        workspace.save(&destination).unwrap();
+        let prior_archive = fs::read(&destination).unwrap();
+        add_recording(&mut workspace, false);
+        assert!(save_project(&workspace.document, &workspace.media_paths, &destination).is_err());
+        assert_eq!(fs::read(&destination).unwrap(), prior_archive);
+        workspace.document.history[0]
+            .recording
+            .as_mut()
+            .unwrap()
+            .frames += 1;
+        assert!(workspace.save(&destination).is_err());
+        assert_eq!(fs::read(&destination).unwrap(), prior_archive);
+        workspace.document.history[0]
+            .recording
+            .as_mut()
+            .unwrap()
+            .frames -= 1;
+        workspace.document.history[0]
+            .recording
+            .as_mut()
+            .unwrap()
+            .sample_rate = 44_100;
+        assert!(workspace.save(&destination).is_err());
+        assert_eq!(fs::read(&destination).unwrap(), prior_archive);
+    }
+
+    #[test]
+    fn open_requires_recording_asset_and_valid_pcm_metadata() {
+        let (directory, mut workspace) = fixture();
+        let bytes = add_recording(&mut workspace, false);
+        let target = fs::read(&workspace.media_paths[&TrackRole::Target]).unwrap();
+        let backing = fs::read(&workspace.media_paths[&TrackRole::Backing]).unwrap();
+        let manifest = serde_json::to_vec(&workspace.document).unwrap();
+        let path = directory.path().join("missing-take.voice");
+        let mut entries = vec![
+            ("media/Target/target.wav", target.as_slice()),
+            ("media/Backing/backing.flac", backing.as_slice()),
+        ];
+        write_archive(&path, &manifest, &entries);
+        assert!(ProjectWorkspace::open(&path).is_err());
+        let mut corrupt = bytes.clone();
+        corrupt[24..28].copy_from_slice(&44_100_u32.to_le_bytes());
+        entries.push(("recordings/take-1.wav", &corrupt));
+        write_archive(&path, &manifest, &entries);
+        assert!(ProjectWorkspace::open(&path).is_err());
+        entries.pop();
+        entries.push(("recordings/take-1.wav", &bytes));
+        write_archive(&path, &manifest, &entries);
+        assert!(ProjectWorkspace::open(&path).is_ok());
+    }
+
+    #[test]
+    fn recording_destinations_and_portable_paths_cannot_escape_workspace() {
+        let (_, mut workspace) = fixture();
+        for id in [
+            "",
+            ".",
+            "..",
+            "../outside",
+            "/absolute",
+            "a/b",
+            "a\\b",
+            "C:drive",
+        ] {
+            assert!(
+                workspace.recording_destination(id).is_err(),
+                "Accepted {id:?}"
+            );
+        }
+        add_recording(&mut workspace, false);
+        assert!(workspace.recording_destination("take-1").is_err());
+        for path in [
+            "../take.wav",
+            "/tmp/take.wav",
+            "recordings/../take.wav",
+            "recordings/other.wav",
+            "media/take-1.wav",
+        ] {
+            workspace.document.history[0]
+                .recording
+                .as_mut()
+                .unwrap()
+                .archive_path = path.into();
+            assert!(
+                validate_document(&workspace.document).is_err(),
+                "Accepted {path:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_truncated_recordings_and_forged_rf64_frame_counts() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("take.wav");
+        let recording = TakeRecording {
+            archive_path: "recordings/id.wav".into(),
+            sample_rate: 48_000,
+            frames: 2,
+        };
+        let bytes = recording_wav(48_000, &[1, -1], true);
+        fs::write(&path, &bytes[..bytes.len() - 1]).unwrap();
+        assert!(validate_recording_file(&path, &recording).is_err());
+        let mut forged = bytes;
+        forged[36..44].copy_from_slice(&99_u64.to_le_bytes());
+        fs::write(&path, forged).unwrap();
+        assert!(validate_recording_file(&path, &recording).is_err());
+    }
+
+    #[test]
+    fn duplicate_recording_references_and_legacy_recordings_are_rejected() {
+        let (directory, mut workspace) = fixture();
+        add_recording(&mut workspace, false);
+        workspace
+            .document
+            .history
+            .push(workspace.document.history[0].clone());
+        assert!(validate_document(&workspace.document).is_err());
+        workspace.document.history.pop();
+        workspace.document.format_version = 1;
+        let path = directory.path().join("invalid-v1.voice");
+        write_archive(
+            &path,
+            &serde_json::to_vec(&workspace.document).unwrap(),
+            &[],
+        );
+        assert!(
+            ProjectWorkspace::open(&path)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("version 2")
+        );
     }
 
     #[test]

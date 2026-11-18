@@ -79,9 +79,10 @@ cp "$repo_root/macOS/Info.plist" "$bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $version" "$bundle/Contents/Info.plist"
 if [[ "$preview" == true ]]; then
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier dev.mmonteiro.voice.preview' "$bundle/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleName Voice Preview' "$bundle/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Voice Preview' "$bundle/Contents/Info.plist"
+    preview_version=${version//./-}
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.mmonteiro.voice.preview.v$preview_version" "$bundle/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName Voice Preview $version" "$bundle/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Voice Preview $version" "$bundle/Contents/Info.plist"
     # A review build must not become the owner of the user's project file type.
     /usr/libexec/PlistBuddy -c 'Delete :CFBundleDocumentTypes' "$bundle/Contents/Info.plist"
 fi

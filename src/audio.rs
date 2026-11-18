@@ -3,6 +3,7 @@ use crate::{
     analysis::detect_pitch,
     media::AudioReader,
     model::{AudioPreferences, PitchFrame},
+    recording::{RecordingBus, RecordingReader, RecordingSession},
 };
 use anyhow::{Context, Result, bail};
 use cpal::{
@@ -74,6 +75,22 @@ pub struct AudioDiagnostics {
     pub analysis_delay_seconds: f64,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ReplaySnapshot {
+    pub playing: bool,
+    pub pending: bool,
+    pub position: f64,
+    pub duration: f64,
+}
+
+#[derive(Clone, Copy)]
+struct ReplayFrame {
+    generation: u64,
+    position: f64,
+    value: f32,
+    ended: bool,
+}
+
 #[derive(Clone, Copy, Default)]
 struct MixFrame {
     generation: u64,
@@ -103,6 +120,18 @@ struct Shared {
     input: ArrayQueue<InputFrame>,
     monitor: ArrayQueue<f32>,
     pitch: ArrayQueue<TaggedPitch>,
+    recording: Arc<RecordingBus>,
+    replay: ArrayQueue<ReplayFrame>,
+    replay_active: AtomicBool,
+    replay_pending: AtomicBool,
+    replay_generation: AtomicU64,
+    replay_position: AtomicU64,
+    replay_duration: AtomicU64,
+    replay_error: AtomicBool,
+    monitor_gain: AtomicU32,
+    voice_peak: AtomicU32,
+    target_peak: AtomicU32,
+    backing_peak: AtomicU32,
     origin: Instant,
     callback_at: AtomicU64,
     output_lead: AtomicU64,
@@ -140,6 +169,18 @@ impl Shared {
             input: ArrayQueue::new(INPUT_CAPACITY),
             monitor: ArrayQueue::new(INPUT_CAPACITY),
             pitch: ArrayQueue::new(PITCH_CAPACITY),
+            recording: RecordingBus::new(),
+            replay: ArrayQueue::new(PLAYBACK_CAPACITY),
+            replay_active: AtomicBool::new(false),
+            replay_pending: AtomicBool::new(false),
+            replay_generation: AtomicU64::new(1),
+            replay_position: AtomicU64::new(0.0_f64.to_bits()),
+            replay_duration: AtomicU64::new(0.0_f64.to_bits()),
+            replay_error: AtomicBool::new(false),
+            monitor_gain: AtomicU32::new(1.0_f32.to_bits()),
+            voice_peak: AtomicU32::new(0),
+            target_peak: AtomicU32::new(0),
+            backing_peak: AtomicU32::new(0),
             origin: Instant::now(),
             callback_at: AtomicU64::new(0),
             output_lead: AtomicU64::new(0.0_f64.to_bits()),
@@ -215,6 +256,10 @@ enum Command {
     Seek(f64, u64, Sender<Result<()>>),
     Shutdown,
 }
+enum ReplayCommand {
+    Play(PathBuf, u64, Sender<Result<()>>),
+    Shutdown,
+}
 
 /// Cloneable nonblocking access that never owns or initializes a CPAL stream.
 #[derive(Clone)]
@@ -223,6 +268,70 @@ pub struct AudioHandle {
 }
 pub type CaptureEpoch = (u64, u64, u64);
 impl AudioHandle {
+    pub(crate) fn take_replay_error(&self) -> bool {
+        self.shared.replay_error.swap(false, Ordering::AcqRel)
+    }
+    pub fn set_gains(&self, target: f32, backing: f32) {
+        let finite = |gain: f32| {
+            if gain.is_finite() {
+                gain.clamp(0.0, 2.0)
+            } else {
+                0.0
+            }
+        };
+        self.shared
+            .target_gain
+            .store(finite(target).to_bits(), Ordering::Relaxed);
+        self.shared
+            .backing_gain
+            .store(finite(backing).to_bits(), Ordering::Relaxed);
+    }
+    pub fn mixer_levels(&self) -> [f32; 3] {
+        [
+            f32::from_bits(self.shared.voice_peak.swap(0, Ordering::Relaxed)),
+            f32::from_bits(self.shared.target_peak.swap(0, Ordering::Relaxed)),
+            f32::from_bits(self.shared.backing_peak.swap(0, Ordering::Relaxed)),
+        ]
+    }
+    pub fn set_monitor_gain(&self, gain: f32) {
+        self.shared.monitor_gain.store(
+            if gain.is_finite() {
+                gain.clamp(0.0, 2.0)
+            } else {
+                0.0
+            }
+            .to_bits(),
+            Ordering::Relaxed,
+        );
+    }
+    pub fn start_recording(&self, path: PathBuf) -> Result<RecordingSession> {
+        if !self.is_input_running() {
+            bail!("Connect the microphone before recording");
+        }
+        let session = self
+            .shared
+            .recording
+            .start(path, self.shared.input_rate.load(Ordering::Acquire))?;
+        if !self.is_input_running() {
+            self.shared.recording.fail_input();
+        }
+        Ok(session)
+    }
+    pub fn recording_playback_state(&self) -> ReplaySnapshot {
+        ReplaySnapshot {
+            playing: self.shared.replay_active.load(Ordering::Acquire),
+            pending: self.shared.replay_pending.load(Ordering::Acquire),
+            position: load_f64(&self.shared.replay_position),
+            duration: load_f64(&self.shared.replay_duration),
+        }
+    }
+    pub fn stop_recording_playback(&self) {
+        self.shared.replay_active.store(false, Ordering::Release);
+        self.shared.replay_pending.store(false, Ordering::Release);
+        self.shared.replay_generation.fetch_add(1, Ordering::AcqRel);
+        while self.shared.replay.pop().is_some() {}
+    }
+
     pub fn capture_epoch(&self) -> CaptureEpoch {
         (
             self.shared.generation.load(Ordering::Acquire),
@@ -267,6 +376,7 @@ impl AudioHandle {
         self.shared.set_latency_compensation(milliseconds);
     }
     pub fn stop_input_capture(&self) {
+        self.shared.recording.stop();
         self.shared.input_epoch_at.store(
             self.shared.origin.elapsed().as_nanos() as u64,
             Ordering::Release,
@@ -274,6 +384,7 @@ impl AudioHandle {
         self.shared.input_active.store(false, Ordering::Release);
         self.shared.monitor_enabled.store(false, Ordering::Release);
         self.shared.input_generation.fetch_add(1, Ordering::AcqRel);
+        self.shared.voice_peak.store(0, Ordering::Relaxed);
     }
     pub fn set_monitor(&self, enabled: bool) {
         self.shared
@@ -285,6 +396,8 @@ impl AudioHandle {
         while self.shared.monitor.pop().is_some() {}
     }
     pub fn shutdown(&self) {
+        self.shared.recording.stop();
+        self.stop_recording_playback();
         self.pause();
         self.shared.monitor_enabled.store(false, Ordering::Release);
         self.shared.input_active.store(false, Ordering::Release);
@@ -297,6 +410,8 @@ pub struct AudioEngine {
     commands: Sender<Command>,
     worker: Option<JoinHandle<()>>,
     capture_worker: Option<JoinHandle<()>>,
+    replay_commands: Sender<ReplayCommand>,
+    replay_worker: Option<JoinHandle<()>>,
     output: Option<cpal::Stream>,
     input: Option<cpal::Stream>,
     diagnostics: AudioDiagnostics,
@@ -306,8 +421,11 @@ pub struct AudioEngine {
 }
 impl AudioEngine {
     pub fn new() -> Result<Self> {
+        Self::new_with_preferences(&AudioPreferences::default())
+    }
+    pub fn new_with_preferences(preferences: &AudioPreferences) -> Result<Self> {
         let mut engine = Self::unconfigured()?;
-        engine.configure_audio(&AudioPreferences::default())?;
+        engine.configure_audio(preferences)?;
         Ok(engine)
     }
     /// Creates workers without calling a hardware API. Configure on a dedicated owner thread.
@@ -322,11 +440,18 @@ impl AudioEngine {
         let capture_worker = thread::Builder::new()
             .name("voice-input-analysis".into())
             .spawn(move || input_worker(capture_shared))?;
+        let (replay_commands, replay_receive) = bounded(4);
+        let replay_shared = shared.clone();
+        let replay_worker = thread::Builder::new()
+            .name("voice-take-decoder".into())
+            .spawn(move || replay_worker(replay_receive, replay_shared))?;
         let engine = Self {
             shared,
             commands,
             worker: Some(worker),
             capture_worker: Some(capture_worker),
+            replay_commands,
+            replay_worker: Some(replay_worker),
             output: None,
             input: None,
             diagnostics: AudioDiagnostics::default(),
@@ -341,7 +466,40 @@ impl AudioEngine {
             shared: self.shared.clone(),
         }
     }
+    pub fn play_recording(&self, path: PathBuf) -> Result<()> {
+        if !self.shared.output_active.load(Ordering::Acquire) {
+            bail!("The output stream is unavailable. Apply audio settings to reconnect.");
+        }
+        self.pause();
+        self.handle().stop_recording_playback();
+        let generation = self.shared.replay_generation.load(Ordering::Acquire);
+        self.shared.replay_pending.store(true, Ordering::Release);
+        let (reply, receive) = bounded(1);
+        let result = self
+            .replay_commands
+            .send(ReplayCommand::Play(path, generation, reply))
+            .map_err(anyhow::Error::from)
+            .and_then(|_| {
+                receive
+                    .recv_timeout(Duration::from_secs(10))
+                    .context("The take decoder did not respond within 10 seconds")?
+            });
+        if result.is_err() && self.shared.replay_generation.load(Ordering::Acquire) == generation {
+            self.handle().stop_recording_playback();
+        }
+        result
+    }
+    pub fn stop_recording_playback(&self) {
+        self.handle().stop_recording_playback();
+    }
+    pub fn set_monitor_gain(&self, gain: f32) {
+        self.handle().set_monitor_gain(gain);
+    }
+    pub fn start_recording(&self, path: PathBuf) -> Result<RecordingSession> {
+        self.handle().start_recording(path)
+    }
     pub fn set_tracks(&mut self, target: Option<PathBuf>, backing: Option<PathBuf>) -> Result<()> {
+        self.stop_recording_playback();
         self.pause();
         let generation = self.shared.next_generation();
         let (reply, receive) = bounded(1);
@@ -372,6 +530,7 @@ impl AudioEngine {
         if !self.shared.output_active.load(Ordering::Acquire) {
             bail!("The output stream is unavailable. Apply audio settings to reconnect.");
         }
+        self.stop_recording_playback();
         self.seek(offset)?;
         self.shared.playing.store(true, Ordering::Release);
         Ok(())
@@ -429,14 +588,10 @@ impl AudioEngine {
         let _ = self.seek(self.position());
     }
     pub fn set_gains(&self, target: f32, backing: f32) {
-        self.shared
-            .target_gain
-            .store(target.clamp(0.0, 2.0).to_bits(), Ordering::Relaxed);
-        self.shared
-            .backing_gain
-            .store(backing.clamp(0.0, 2.0).to_bits(), Ordering::Relaxed);
+        self.handle().set_gains(target, backing);
     }
     pub fn configure_audio(&mut self, preferences: &AudioPreferences) -> Result<()> {
+        self.stop_recording_playback();
         let playing = self.is_playing();
         let position = self.pause();
         self.stop_input();
@@ -542,6 +697,8 @@ impl AudioEngine {
         self.shared.input_active.load(Ordering::Acquire) && self.input.is_some()
     }
     pub fn stop_input(&mut self) {
+        self.shared.recording.stop();
+        self.shared.voice_peak.store(0, Ordering::Relaxed);
         self.shared.input_epoch_at.store(
             self.shared.origin.elapsed().as_nanos() as u64,
             Ordering::Release,
@@ -585,6 +742,7 @@ impl AudioEngine {
 }
 impl Drop for AudioEngine {
     fn drop(&mut self) {
+        self.shared.recording.stop();
         self.shared.shutdown.store(true, Ordering::Release);
         self.shared.playing.store(false, Ordering::Release);
         self.input = None;
@@ -594,6 +752,10 @@ impl Drop for AudioEngine {
             let _ = worker.join();
         }
         if let Some(worker) = self.capture_worker.take() {
+            let _ = worker.join();
+        }
+        let _ = self.replay_commands.try_send(ReplayCommand::Shutdown);
+        if let Some(worker) = self.replay_worker.take() {
             let _ = worker.join();
         }
     }
@@ -628,7 +790,7 @@ fn select_device(name: Option<&str>, input: bool) -> Result<cpal::Device> {
     .context("No default audio device is available")
 }
 /// Native property discovery avoids opening AudioUnits before stream configuration.
-/// CPAL 0.18 reports direction from device properties; channel counts are filled after activation.
+/// On macOS, CPAL 0.18 configuration queries read cached CoreAudio properties without creating a stream.
 pub fn list_device_names() -> Result<DeviceInventory> {
     let host = cpal::default_host();
     let mut inventory = DeviceInventory::default();
@@ -639,14 +801,53 @@ pub fn list_device_names() -> Result<DeviceInventory> {
                 ..Default::default()
             };
             if description.supports_input() {
-                inventory.inputs.push(info.clone());
+                inventory
+                    .inputs
+                    .push(cached_device_configuration(info.clone(), &device, true));
             }
             if description.supports_output() {
-                inventory.outputs.push(info);
+                inventory
+                    .outputs
+                    .push(cached_device_configuration(info, &device, false));
             }
         }
     }
     Ok(inventory)
+}
+
+fn cached_device_configuration(
+    info: DeviceInfo,
+    _device: &cpal::Device,
+    _input: bool,
+) -> DeviceInfo {
+    #[cfg(target_os = "macos")]
+    {
+        let mut info = info;
+        let config = if _input {
+            _device.default_input_config()
+        } else {
+            _device.default_output_config()
+        };
+        if let Ok(config) = config {
+            fill_device_configuration(&mut info, &config);
+        }
+        info
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        info
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn fill_device_configuration(info: &mut DeviceInfo, config: &cpal::SupportedStreamConfig) {
+    info.channels = config.channels();
+    info.sample_rate_min = config.sample_rate();
+    info.sample_rate_max = config.sample_rate();
+    if let SupportedBufferSize::Range { min, max } = config.buffer_size() {
+        info.buffer_min = Some(*min);
+        info.buffer_max = Some(*max);
+    }
 }
 
 pub fn list_devices() -> Result<DeviceInventory> {
@@ -917,6 +1118,170 @@ fn decode_worker(commands: Receiver<Command>, shared: Arc<Shared>) {
     }
 }
 
+struct ReplayReader {
+    reader: RecordingReader,
+    block: Vec<f32>,
+    index: usize,
+    a: Option<f32>,
+    b: Option<f32>,
+    phase: f64,
+}
+impl ReplayReader {
+    fn native(&mut self) -> Result<Option<f32>> {
+        if self.index >= self.block.len() {
+            self.block = self.reader.read_mono(4096)?;
+            self.index = 0;
+        }
+        let sample = self.block.get(self.index).copied();
+        self.index += usize::from(sample.is_some());
+        Ok(sample)
+    }
+    fn next(&mut self, output_rate: u32) -> Result<f32> {
+        if self.a.is_none() {
+            self.a = self.native()?;
+            self.b = self.native()?;
+        }
+        let Some(a) = self.a else {
+            return Ok(0.0);
+        };
+        let value = a + (self.b.unwrap_or(a) - a) * self.phase as f32;
+        self.phase += self.reader.sample_rate as f64 / output_rate as f64;
+        while self.phase >= 1.0 {
+            self.phase -= 1.0;
+            self.a = self.b;
+            self.b = self.native()?;
+        }
+        Ok(value)
+    }
+}
+fn replay_worker(receive: Receiver<ReplayCommand>, shared: Arc<Shared>) {
+    let mut reader: Option<ReplayReader> = None;
+    let mut cursor = 0.0;
+    let mut duration = 0.0;
+    let mut generation = 0;
+    let mut eof_queued = false;
+    while !shared.shutdown.load(Ordering::Acquire) {
+        while let Ok(command) = receive.try_recv() {
+            match command {
+                ReplayCommand::Shutdown => return,
+                ReplayCommand::Play(path, requested, reply) => {
+                    let result = RecordingReader::open(&path);
+                    if requested != shared.replay_generation.load(Ordering::Acquire) {
+                        let _ = reply.send(Err(anyhow::anyhow!(
+                            "The take playback request was superseded"
+                        )));
+                        continue;
+                    }
+                    match result {
+                        Ok(recording) => {
+                            duration = recording.frames as f64 / recording.sample_rate as f64;
+                            reader = Some(ReplayReader {
+                                reader: recording,
+                                block: Vec::new(),
+                                index: 0,
+                                a: None,
+                                b: None,
+                                phase: 0.0,
+                            });
+                            cursor = 0.0;
+                            generation = requested;
+                            eof_queued = false;
+                            while shared.replay.pop().is_some() {}
+                            store_f64(&shared.replay_position, 0.0);
+                            store_f64(&shared.replay_duration, duration);
+                            shared.replay_pending.store(false, Ordering::Release);
+                            shared.replay_active.store(true, Ordering::Release);
+                            let _ = reply.send(Ok(()));
+                        }
+                        Err(error) => {
+                            shared.replay_pending.store(false, Ordering::Release);
+                            let _ = reply.send(Err(error));
+                        }
+                    }
+                }
+            }
+        }
+        if generation != shared.replay_generation.load(Ordering::Acquire) {
+            reader = None;
+        }
+        if !shared.replay_active.load(Ordering::Acquire)
+            || eof_queued
+            || reader.is_none()
+            || shared.replay.len() >= PLAYBACK_CAPACITY - 1024
+        {
+            thread::sleep(Duration::from_millis(2));
+            continue;
+        }
+        let rate = shared.output_rate.load(Ordering::Acquire).max(1);
+        for _ in 0..512 {
+            if generation != shared.replay_generation.load(Ordering::Acquire)
+                || shared.replay.is_full()
+            {
+                break;
+            }
+            let ended = cursor >= duration;
+            let result = if ended {
+                Ok(0.0)
+            } else {
+                reader.as_mut().expect("active replay reader").next(rate)
+            };
+            match result {
+                Ok(value) => {
+                    let _ = shared.replay.push(ReplayFrame {
+                        generation,
+                        position: cursor.min(duration),
+                        value,
+                        ended,
+                    });
+                    if ended {
+                        eof_queued = true;
+                        break;
+                    }
+                    cursor += 1.0 / rate as f64;
+                }
+                Err(_) => {
+                    shared.replay_error.store(true, Ordering::Release);
+                    shared.replay_active.store(false, Ordering::Release);
+                    reader = None;
+                    break;
+                }
+            }
+        }
+    }
+}
+fn render_replay(shared: &Shared) -> f32 {
+    if !shared.replay_active.load(Ordering::Acquire) {
+        return 0.0;
+    }
+    if let Some(frame) = shared.replay.pop() {
+        if frame.generation != shared.replay_generation.load(Ordering::Acquire) {
+            return 0.0;
+        }
+        store_f64(&shared.replay_position, frame.position);
+        if frame.ended {
+            shared.replay_active.store(false, Ordering::Release);
+            return 0.0;
+        }
+        store_f64(
+            &shared.replay_position,
+            (frame.position + 1.0 / shared.output_rate.load(Ordering::Relaxed).max(1) as f64)
+                .min(load_f64(&shared.replay_duration)),
+        );
+        peak(
+            &shared.voice_peak,
+            frame.value * load_f32(&shared.monitor_gain),
+        );
+        return frame.value;
+    }
+    shared.underruns.fetch_add(1, Ordering::Relaxed);
+    0.0
+}
+fn peak(atomic: &AtomicU32, value: f32) {
+    if value.is_finite() {
+        atomic.fetch_max(value.abs().to_bits(), Ordering::Relaxed);
+    }
+}
+
 fn render_frame(shared: &Shared) -> [f32; 2] {
     if !shared.playing.load(Ordering::Acquire) {
         return [0.0; 2];
@@ -938,6 +1303,14 @@ fn render_frame(shared: &Shared) -> [f32; 2] {
         shared.iteration.store(frame.iteration, Ordering::Release);
         let t = load_f32(&shared.target_gain);
         let b = load_f32(&shared.backing_gain);
+        peak(
+            &shared.target_peak,
+            frame.target[0].abs().max(frame.target[1].abs()) * t,
+        );
+        peak(
+            &shared.backing_peak,
+            frame.backing[0].abs().max(frame.backing[1].abs()) * b,
+        );
         return [
             frame.target[0] * t + frame.backing[0] * b,
             frame.target[1] * t + frame.backing[1] * b,
@@ -998,7 +1371,7 @@ where
         .store((data.len() / channels) as u32, Ordering::Relaxed);
     for output in data.chunks_exact_mut(channels) {
         let mix = render_frame(shared);
-        let live = monitor.next(shared);
+        let live = (monitor.next(shared) + render_replay(shared)) * load_f32(&shared.monitor_gain);
         for (channel, sample) in output.iter_mut().enumerate() {
             let value = if channels == 1 {
                 (mix[0] + mix[1]) * 0.5
@@ -1015,6 +1388,7 @@ fn output_error(shared: &Shared) {
     shared.stream_error.store(true, Ordering::Release);
     shared.playing.store(false, Ordering::Release);
     shared.output_active.store(false, Ordering::Release);
+    shared.replay_active.store(false, Ordering::Release);
 }
 #[cfg(test)]
 pub(crate) fn output_callback_for_test(handle: &AudioHandle, frames: usize, running: bool) {
@@ -1076,6 +1450,86 @@ fn build_output(
         _ => bail!("Unsupported output sample format: {format:?}"),
     }
 }
+fn capture_input<T>(
+    data: &[T],
+    channels: usize,
+    channel: usize,
+    rate: u32,
+    shared: &Shared,
+    callback_clock: f64,
+    capture_age: f64,
+) where
+    T: cpal::SizedSample,
+    f32: cpal::FromSample<T>,
+{
+    shared
+        .input_frames
+        .store((data.len() / channels) as u32, Ordering::Relaxed);
+    if !shared.input_active.load(Ordering::Acquire) {
+        return;
+    }
+    let elapsed =
+        callback_clock - shared.callback_at.load(Ordering::Acquire) as f64 / 1_000_000_000.0;
+    let delta = elapsed - load_f64(&shared.output_lead) - capture_age - load_f64(&shared.latency);
+    let position = load_f64(&shared.position);
+    let generation = shared.generation.load(Ordering::Acquire);
+    let iteration = shared.iteration.load(Ordering::Acquire);
+    let input_generation = shared.input_generation.load(Ordering::Acquire);
+    let gain = load_f32(&shared.input_gain);
+    let playing = shared.playing.load(Ordering::Acquire);
+    let loop_region = if shared.loop_enabled.load(Ordering::Acquire) {
+        Some((load_f64(&shared.loop_start), load_f64(&shared.loop_end)))
+    } else {
+        None
+    };
+    let epoch_at = shared
+        .transport_epoch_at
+        .load(Ordering::Acquire)
+        .max(shared.input_epoch_at.load(Ordering::Acquire)) as f64
+        / 1_000_000_000.0;
+    let recording = shared.recording.enter();
+    for (index, frame) in data.chunks_exact(channels).enumerate() {
+        let raw = cpal::Sample::to_sample::<f32>(frame[channel]) * gain;
+        let value = if raw.is_finite() { raw } else { 0.0 };
+        peak(&shared.voice_peak, value);
+        let capture_clock = callback_clock - capture_age + index as f64 / rate as f64;
+        if capture_clock < epoch_at {
+            continue;
+        }
+        // An explicitly armed practice recording begins with transport, excluding pre-roll.
+        if playing && let Some(tap) = &recording {
+            tap.push(value);
+        }
+        let (time, sample_iteration) = if playing {
+            map_capture_time(
+                position,
+                iteration,
+                delta + index as f64 / rate as f64,
+                loop_region,
+            )
+        } else {
+            (position, iteration)
+        };
+        if shared
+            .input
+            .push(InputFrame {
+                value,
+                time,
+                generation,
+                iteration: sample_iteration,
+                input_generation,
+                playing,
+            })
+            .is_err()
+        {
+            shared.input_drops.fetch_add(1, Ordering::Relaxed);
+        }
+        if shared.monitor_enabled.load(Ordering::Relaxed) {
+            let _ = shared.monitor.push(value);
+        }
+    }
+}
+
 fn input_stream<T>(
     device: &cpal::Device,
     config: &StreamConfig,
@@ -1092,77 +1546,24 @@ where
     Ok(device.build_input_stream(
         *config,
         move |data: &[T], info: &cpal::InputCallbackInfo| {
-            shared
-                .input_frames
-                .store((data.len() / channels) as u32, Ordering::Relaxed);
-            if !shared.input_active.load(Ordering::Acquire) {
-                return;
-            }
-            let callback_clock = shared.origin.elapsed().as_secs_f64();
             let capture_age = info
                 .timestamp()
                 .callback
                 .checked_duration_since(info.timestamp().capture)
                 .map_or(0.0, |duration| duration.as_secs_f64());
-            let elapsed = callback_clock
-                - shared.callback_at.load(Ordering::Acquire) as f64 / 1_000_000_000.0;
-            let delta =
-                elapsed - load_f64(&shared.output_lead) - capture_age - load_f64(&shared.latency);
-            let position = load_f64(&shared.position);
-            let generation = shared.generation.load(Ordering::Acquire);
-            let iteration = shared.iteration.load(Ordering::Acquire);
-            let input_generation = shared.input_generation.load(Ordering::Acquire);
-            let gain = load_f32(&shared.input_gain);
-            let playing = shared.playing.load(Ordering::Acquire);
-            let loop_region = if shared.loop_enabled.load(Ordering::Acquire) {
-                Some((load_f64(&shared.loop_start), load_f64(&shared.loop_end)))
-            } else {
-                None
-            };
-            let epoch_at = shared
-                .transport_epoch_at
-                .load(Ordering::Acquire)
-                .max(shared.input_epoch_at.load(Ordering::Acquire))
-                as f64
-                / 1_000_000_000.0;
-            for (index, frame) in data.chunks_exact(channels).enumerate() {
-                let capture_clock = callback_clock - capture_age + index as f64 / rate as f64;
-                if capture_clock < epoch_at {
-                    continue;
-                }
-                let raw = cpal::Sample::to_sample::<f32>(frame[channel]) * gain;
-                let value = if raw.is_finite() { raw } else { 0.0 };
-                let (time, sample_iteration) = if playing {
-                    map_capture_time(
-                        position,
-                        iteration,
-                        delta + index as f64 / rate as f64,
-                        loop_region,
-                    )
-                } else {
-                    (position, iteration)
-                };
-                if shared
-                    .input
-                    .push(InputFrame {
-                        value,
-                        time,
-                        generation,
-                        iteration: sample_iteration,
-                        input_generation,
-                        playing,
-                    })
-                    .is_err()
-                {
-                    shared.input_drops.fetch_add(1, Ordering::Relaxed);
-                }
-                if shared.monitor_enabled.load(Ordering::Relaxed) {
-                    let _ = shared.monitor.push(value);
-                }
-            }
+            capture_input(
+                data,
+                channels,
+                channel,
+                rate,
+                &shared,
+                shared.origin.elapsed().as_secs_f64(),
+                capture_age,
+            );
         },
         move |_| {
             errors.stream_error.store(true, Ordering::Release);
+            errors.recording.fail_input();
             errors.input_active.store(false, Ordering::Release);
             errors.input_generation.fetch_add(1, Ordering::AcqRel);
             errors.monitor_enabled.store(false, Ordering::Release);
@@ -1273,6 +1674,146 @@ fn map_capture_time(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn finish_recording(session: &RecordingSession) -> crate::recording::RecordedAudioSummary {
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            if let Some(result) = session.try_finish() {
+                return result.unwrap();
+            }
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+    #[test]
+    fn capture_records_selected_channel_on_transport_independently_of_monitor_fader() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = Arc::new(Shared::new());
+        let handle = AudioHandle {
+            shared: shared.clone(),
+        };
+        assert!(
+            handle
+                .start_recording(dir.path().join("without-mic.wav"))
+                .is_err()
+        );
+        shared.input_active.store(true, Ordering::Release);
+        shared.input_rate.store(8_000, Ordering::Release);
+        shared
+            .input_gain
+            .store(2.0_f32.to_bits(), Ordering::Release);
+        handle.set_monitor_gain(0.0);
+        let session = handle
+            .start_recording(dir.path().join("selected.wav"))
+            .unwrap();
+        // Metering continues while idle, but practice recording excludes pre-roll.
+        capture_input(&[0.9_f32, 0.25], 2, 1, 8_000, &shared, 1.0, 0.0);
+        shared.playing.store(true, Ordering::Release);
+        capture_input(
+            &[0.9_f32, 0.125, 0.8, -0.25],
+            2,
+            1,
+            8_000,
+            &shared,
+            1.0,
+            0.0,
+        );
+        shared.playing.store(false, Ordering::Release);
+        capture_input(&[0.9_f32, 0.75], 2, 1, 8_000, &shared, 1.0, 0.0);
+        session.stop();
+        let summary = finish_recording(&session);
+        assert_eq!(summary.frames, 2);
+        assert_eq!(summary.sample_rate, 8_000);
+        let mut reader = RecordingReader::open(&summary.path).unwrap();
+        assert_eq!(reader.read_mono(100).unwrap(), vec![0.25, -0.5]);
+        assert!(shared.monitor.is_empty());
+        assert_eq!(handle.mixer_levels(), [1.5, 0.0, 0.0]);
+        assert_eq!(handle.mixer_levels(), [0.0; 3]);
+        handle.stop_input_capture();
+        assert!(!handle.is_input_running());
+    }
+    #[test]
+    fn replay_and_monitor_share_only_voice_fader_without_changing_track_gains_or_cursor() {
+        let shared = Arc::new(Shared::new());
+        let handle = AudioHandle {
+            shared: shared.clone(),
+        };
+        store_f64(&shared.position, 12.0);
+        shared.replay_active.store(true, Ordering::Release);
+        store_f64(&shared.replay_duration, 1.0);
+        handle.set_monitor_gain(0.25);
+        shared
+            .replay
+            .push(ReplayFrame {
+                generation: 1,
+                position: 0.0,
+                value: 0.8,
+                ended: false,
+            })
+            .ok();
+        let mut output = [0.0_f32; 2];
+        render_output(&mut output, 2, &shared, &mut MonitorState::new());
+        assert_eq!(output, [0.2, 0.2]);
+        assert_eq!(handle.position(), 12.0);
+        assert_eq!(load_f32(&shared.input_gain), 1.0);
+        assert_eq!(handle.mixer_levels(), [0.2, 0.0, 0.0]);
+        handle.stop_recording_playback();
+        // A stale decoder frame cannot play or move either transport after cancellation.
+        shared
+            .replay
+            .push(ReplayFrame {
+                generation: 1,
+                position: 20.0,
+                value: 1.0,
+                ended: false,
+            })
+            .ok();
+        render_output(&mut output, 2, &shared, &mut MonitorState::new());
+        assert_eq!(output, [0.0; 2]);
+        assert_eq!(handle.position(), 12.0);
+        assert!(!handle.recording_playback_state().playing);
+    }
+    #[test]
+    fn replay_streams_recorded_file_resamples_and_finishes_without_touching_main_transport() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = AudioEngine::unconfigured().unwrap();
+        let shared = &engine.shared;
+        shared.input_active.store(true, Ordering::Release);
+        shared.input_rate.store(8_000, Ordering::Release);
+        shared.output_rate.store(16_000, Ordering::Release);
+        shared.output_active.store(true, Ordering::Release);
+        shared.playing.store(true, Ordering::Release);
+        let session = engine
+            .start_recording(dir.path().join("replay.wav"))
+            .unwrap();
+        let samples = [0.0_f32, 0.25, 0.5, 0.75];
+        capture_input(&samples, 1, 0, 8_000, shared, 1.0, 0.0);
+        session.stop();
+        let summary = finish_recording(&session);
+        engine.pause();
+        store_f64(&shared.position, 12.0);
+        engine.play_recording(summary.path).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while shared.replay.len() < 9 {
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(2));
+        }
+        let mut output = [0.0_f32; 18];
+        render_output(&mut output, 2, shared, &mut MonitorState::new());
+        let mono: Vec<_> = output.as_chunks::<2>().0.iter().map(|f| f[0]).collect();
+        assert_eq!(
+            mono,
+            vec![0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.75, 0.0]
+        );
+        assert!(!engine.handle().recording_playback_state().playing);
+        assert!(!engine.is_playing());
+        assert_eq!(engine.position(), 12.0);
+        assert!(
+            engine
+                .play_recording(dir.path().join("missing.wav"))
+                .is_err()
+        );
+        assert!(!engine.handle().recording_playback_state().pending);
+    }
     #[test]
     fn mixer_uses_one_clock_and_rejects_late_generations() {
         let shared = Shared::new();
@@ -1323,6 +1864,51 @@ mod tests {
         assert_eq!(monitor.next(&shared), 0.0);
         shared.clear_playback();
         assert!(shared.playback.is_empty());
+    }
+    #[test]
+    fn cached_duplex_configuration_keeps_input_and_output_channels_separate() {
+        let device = DeviceInfo {
+            name: "Duplex interface".into(),
+            ..Default::default()
+        };
+        let mut input = device.clone();
+        let mut output = device;
+        fill_device_configuration(
+            &mut input,
+            &cpal::SupportedStreamConfig::new(
+                2,
+                44_100,
+                SupportedBufferSize::Range { min: 32, max: 512 },
+                SampleFormat::F32,
+            ),
+        );
+        fill_device_configuration(
+            &mut output,
+            &cpal::SupportedStreamConfig::new(
+                6,
+                96_000,
+                SupportedBufferSize::Range { min: 64, max: 1024 },
+                SampleFormat::F32,
+            ),
+        );
+        assert_eq!(input.name, output.name);
+        assert_eq!(
+            (input.channels, input.sample_rate_min, input.sample_rate_max),
+            (2, 44_100, 44_100)
+        );
+        assert_eq!(
+            (
+                output.channels,
+                output.sample_rate_min,
+                output.sample_rate_max
+            ),
+            (6, 96_000, 96_000)
+        );
+        assert_eq!((input.buffer_min, input.buffer_max), (Some(32), Some(512)));
+        assert_eq!(
+            (output.buffer_min, output.buffer_max),
+            (Some(64), Some(1024))
+        );
     }
     #[test]
     fn buffer_request_respects_known_hardware_range() {

@@ -1,7 +1,11 @@
 //! UI-facing audio actor. All hardware calls and stream ownership stay on its dedicated thread.
 use crate::{
-    audio::{self, AudioDiagnostics, AudioEngine, AudioHandle, CaptureEpoch, DeviceInventory},
+    audio::{
+        self, AudioDiagnostics, AudioEngine, AudioHandle, CaptureEpoch, DeviceInventory,
+        ReplaySnapshot,
+    },
     model::{AudioPreferences, PitchFrame},
+    recording::RecordingSession,
 };
 use anyhow::{Context, Result, bail};
 use crossbeam_channel::{Receiver, Sender, bounded};
@@ -27,6 +31,7 @@ pub struct ControllerSnapshot {
     pub completed_seq: u64,
     pub diagnostics: AudioDiagnostics,
     pub devices: DeviceInventory,
+    pub replay: ReplaySnapshot,
 }
 struct Shared {
     snapshot: Mutex<ControllerSnapshot>,
@@ -38,6 +43,10 @@ struct Shared {
     latest_configure: AtomicU64,
     latest_input: AtomicU64,
     latest_monitor: AtomicU64,
+    latest_gains: AtomicU64,
+    latest_monitor_gain: AtomicU64,
+    latest_replay: AtomicU64,
+    replay_pending: AtomicBool,
 }
 enum Operation {
     Tracks(Option<PathBuf>, Option<PathBuf>),
@@ -46,6 +55,9 @@ enum Operation {
     Seek(f64),
     Loop(f64, f64, bool),
     Gains(f32, f32),
+    MonitorGain(f32),
+    PlayRecording(PathBuf),
+    StopRecordingPlayback,
     Configure(AudioPreferences),
     StartInput(AudioPreferences),
     StopInput,
@@ -68,7 +80,11 @@ pub struct AudioController {
 impl AudioController {
     /// Returns immediately, before any audio host or device API is called.
     pub fn new() -> Result<Self> {
-        Self::spawn(owner)
+        Self::new_with_preferences(&AudioPreferences::default())
+    }
+    pub fn new_with_preferences(preferences: &AudioPreferences) -> Result<Self> {
+        let preferences = preferences.clone();
+        Self::spawn(move |receive, shared| owner(receive, shared, preferences))
     }
     fn spawn(run: impl FnOnce(Receiver<Request>, Arc<Shared>) + Send + 'static) -> Result<Self> {
         let snapshot = ControllerSnapshot {
@@ -85,6 +101,10 @@ impl AudioController {
             latest_configure: AtomicU64::new(0),
             latest_input: AtomicU64::new(0),
             latest_monitor: AtomicU64::new(0),
+            latest_gains: AtomicU64::new(0),
+            latest_monitor_gain: AtomicU64::new(0),
+            latest_replay: AtomicU64::new(0),
+            replay_pending: AtomicBool::new(false),
         });
         let (sender, receive) = bounded(64);
         let worker_shared = shared.clone();
@@ -135,7 +155,9 @@ impl AudioController {
         let mut snapshot = self.cached.borrow_mut();
         if let Some(handle) = self.handle() {
             handle.refresh_diagnostics(&mut snapshot.diagnostics);
+            snapshot.replay = handle.recording_playback_state();
         }
+        snapshot.replay.pending |= self.shared.replay_pending.load(Ordering::Acquire);
         snapshot.clone()
     }
     pub fn set_tracks(&mut self, target: Option<PathBuf>, backing: Option<PathBuf>) -> Result<()> {
@@ -174,7 +196,64 @@ impl AudioController {
         let _ = self.send(Operation::Loop(start, end, enabled));
     }
     pub fn set_gains(&self, target: f32, backing: f32) {
-        let _ = self.send(Operation::Gains(target, backing));
+        if let Some(handle) = self.handle() {
+            self.shared.latest_gains.store(u64::MAX, Ordering::Release);
+            handle.set_gains(target, backing);
+        } else {
+            let _ = self.send(Operation::Gains(target, backing));
+        }
+    }
+    pub fn set_monitor_gain(&self, gain: f32) {
+        if let Some(handle) = self.handle() {
+            self.shared
+                .latest_monitor_gain
+                .store(u64::MAX, Ordering::Release);
+            handle.set_monitor_gain(gain);
+        } else {
+            let _ = self.send(Operation::MonitorGain(gain));
+        }
+    }
+    /// Returns peak levels since the last read: voice input, reference, accompaniment.
+    pub fn mixer_levels(&self) -> [f32; 3] {
+        self.handle()
+            .map_or([0.0; 3], |handle| handle.mixer_levels())
+    }
+    pub fn start_recording(&self, path: PathBuf) -> Result<RecordingSession> {
+        let state = self.poll();
+        if state.initializing || state.configuring {
+            bail!("Audio is still initializing or configuring");
+        }
+        self.handle()
+            .context("Audio is still initializing")?
+            .start_recording(path)
+    }
+    pub fn recording_playback_state(&self) -> ReplaySnapshot {
+        self.poll().replay
+    }
+    pub fn play_recording(&self, path: PathBuf) -> Result<()> {
+        let state = self.poll();
+        if state.initializing || state.configuring {
+            bail!("Audio is still initializing or configuring");
+        }
+        self.pause();
+        if let Some(handle) = self.handle() {
+            handle.stop_recording_playback();
+        }
+        self.shared.replay_pending.store(true, Ordering::Release);
+        if let Err(error) = self.send(Operation::PlayRecording(path)) {
+            self.shared.replay_pending.store(false, Ordering::Release);
+            return Err(error);
+        }
+        Ok(())
+    }
+    pub fn stop_recording_playback(&self) {
+        self.shared.replay_pending.store(false, Ordering::Release);
+        // Cancellation remains authoritative even if the bounded command queue is full.
+        self.shared.latest_replay.store(u64::MAX, Ordering::Release);
+        if let Some(handle) = self.handle() {
+            handle.stop_recording_playback();
+        }
+        let _ = self.send(Operation::StopRecordingPlayback);
     }
     pub fn configure_audio(&mut self, preferences: &AudioPreferences) -> Result<()> {
         self.pause();
@@ -188,12 +267,18 @@ impl AudioController {
         self.send(Operation::StartInput(preferences.clone()))
     }
     pub fn stop_input(&mut self) {
+        self.shared.latest_input.store(u64::MAX, Ordering::Release);
         if let Some(handle) = self.handle() {
             handle.stop_input_capture();
         }
         let _ = self.send(Operation::StopInput);
     }
     pub fn set_monitor(&self, enabled: bool) {
+        if !enabled {
+            self.shared
+                .latest_monitor
+                .store(u64::MAX, Ordering::Release);
+        }
         if let Some(handle) = self.handle() {
             handle.set_monitor(enabled);
         }
@@ -280,6 +365,11 @@ fn request_slot<'a>(shared: &'a Shared, operation: &Operation) -> Option<&'a Ato
         Operation::Configure(_) => Some(&shared.latest_configure),
         Operation::StartInput(_) | Operation::StopInput => Some(&shared.latest_input),
         Operation::Monitor(_) => Some(&shared.latest_monitor),
+        Operation::Gains(_, _) => Some(&shared.latest_gains),
+        Operation::MonitorGain(_) => Some(&shared.latest_monitor_gain),
+        Operation::PlayRecording(_) | Operation::StopRecordingPlayback => {
+            Some(&shared.latest_replay)
+        }
         _ => None,
     }
 }
@@ -288,7 +378,7 @@ fn request_is_current(shared: &Shared, request: &Request) -> bool {
         .is_none_or(|slot| slot.load(Ordering::Acquire) == request.sequence)
 }
 
-fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
+fn owner(receive: Receiver<Request>, shared: Arc<Shared>, preferences: AudioPreferences) {
     // Inventory uses CPAL 0.18 device properties and never opens an AudioUnit.
     match audio::list_device_names() {
         Ok(devices) => update(&shared, |state| state.devices = devices),
@@ -311,9 +401,7 @@ fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
     if shared.shutdown.load(Ordering::Acquire) {
         return;
     }
-    if let Err(error) = configure(&shared, || {
-        engine.configure_audio(&AudioPreferences::default())
-    }) {
+    if let Err(error) = configure(&shared, || engine.configure_audio(&preferences)) {
         record_error(
             &shared,
             error.context("Cannot initialize the default output"),
@@ -330,6 +418,7 @@ fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
                 }
                 let slot = request_slot(&shared, &request.operation);
                 let starting_input = matches!(&request.operation, Operation::StartInput(_));
+                let starting_replay = matches!(&request.operation, Operation::PlayRecording(_));
                 let result = match request.operation {
                     Operation::Tracks(target, backing) => engine.set_tracks(target, backing),
                     Operation::Play(offset) => engine.play(offset),
@@ -344,6 +433,15 @@ fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
                     }
                     Operation::Gains(target, backing) => {
                         engine.set_gains(target, backing);
+                        Ok(())
+                    }
+                    Operation::MonitorGain(gain) => {
+                        engine.set_monitor_gain(gain);
+                        Ok(())
+                    }
+                    Operation::PlayRecording(path) => engine.play_recording(path),
+                    Operation::StopRecordingPlayback => {
+                        engine.stop_recording_playback();
                         Ok(())
                     }
                     Operation::Configure(preferences) => {
@@ -378,6 +476,12 @@ fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
                 if !current && starting_input {
                     engine.stop_input();
                 }
+                if !current && starting_replay {
+                    engine.stop_recording_playback();
+                }
+                if current && starting_replay {
+                    shared.replay_pending.store(false, Ordering::Release);
+                }
                 if current && let Err(error) = result {
                     record_error(&shared, error);
                 }
@@ -392,6 +496,12 @@ fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
                 let _ = shared.pitch.pop();
             }
         }
+        if engine.handle().take_replay_error() {
+            record_error(
+                &shared,
+                anyhow::anyhow!("Take playback stopped because the recording could not be read"),
+            );
+        }
     }
 }
 
@@ -399,6 +509,119 @@ fn owner(receive: Receiver<Request>, shared: Arc<Shared>) {
 mod tests {
     use super::*;
     use std::time::Instant;
+    #[test]
+    fn canceled_queued_take_playback_never_reaches_the_owner() {
+        let (release, blocked) = bounded::<()>(1);
+        let (ready, initialized) = bounded(1);
+        let (finished, result) = bounded(1);
+        let controller = AudioController::spawn(move |receive, shared| {
+            update(&shared, |state| state.initializing = false);
+            ready.send(()).unwrap();
+            blocked.recv().unwrap();
+            let operations: Vec<_> = receive
+                .try_iter()
+                .filter(|r| request_is_current(&shared, r))
+                .map(|r| match r.operation {
+                    Operation::PlayRecording(_) => "play",
+                    Operation::StopRecordingPlayback => "stop",
+                    _ => "other",
+                })
+                .collect();
+            finished.send(operations).unwrap();
+        })
+        .unwrap();
+        initialized.recv_timeout(Duration::from_secs(1)).unwrap();
+        controller
+            .play_recording(PathBuf::from("take.wav"))
+            .unwrap();
+        assert!(controller.recording_playback_state().pending);
+        controller.stop_recording_playback();
+        assert!(!controller.recording_playback_state().pending);
+        release.send(()).unwrap();
+        let operations = result.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(!operations.contains(&"play"));
+        assert!(operations.contains(&"stop"));
+    }
+    #[test]
+    fn cancellation_remains_authoritative_when_the_owner_queue_is_full() {
+        let (release, blocked) = bounded::<()>(1);
+        let (finished, result) = bounded(1);
+        let mut controller = AudioController::spawn(move |receive, shared| {
+            blocked.recv().unwrap();
+            let openings = receive
+                .try_iter()
+                .filter(|r| request_is_current(&shared, r))
+                .filter(|r| {
+                    matches!(
+                        r.operation,
+                        Operation::StartInput(_)
+                            | Operation::Monitor(true)
+                            | Operation::PlayRecording(_)
+                    )
+                })
+                .count();
+            finished.send(openings).unwrap();
+        })
+        .unwrap();
+        controller
+            .send(Operation::StartInput(AudioPreferences::default()))
+            .unwrap();
+        controller.send(Operation::Monitor(true)).unwrap();
+        controller
+            .send(Operation::PlayRecording(PathBuf::from("take.wav")))
+            .unwrap();
+        for _ in 0..61 {
+            controller.refresh_devices().unwrap();
+        }
+        controller.stop_input();
+        controller.set_monitor(false);
+        controller.stop_recording_playback();
+        release.send(()).unwrap();
+        assert_eq!(result.recv_timeout(Duration::from_secs(1)).unwrap(), 0);
+    }
+    #[test]
+    fn direct_faders_supersede_queued_startup_values_and_bypass_a_full_owner_queue() {
+        let (activate, activation) = bounded::<()>(1);
+        let (release, blocked) = bounded::<()>(1);
+        let (ready, initialized) = bounded(1);
+        let (finished, result) = bounded(1);
+        let controller = AudioController::spawn(move |receive, shared| {
+            activation.recv().unwrap();
+            let engine = AudioEngine::unconfigured().unwrap();
+            *shared.handle.lock().unwrap() = Some(engine.handle());
+            ready.send(()).unwrap();
+            blocked.recv().unwrap();
+            let obsolete_faders = receive
+                .try_iter()
+                .filter(|r| request_is_current(&shared, r))
+                .filter(|r| {
+                    matches!(
+                        r.operation,
+                        Operation::Gains(_, _) | Operation::MonitorGain(_)
+                    )
+                })
+                .count();
+            finished.send(obsolete_faders).unwrap();
+        })
+        .unwrap();
+        controller.set_gains(0.1, 0.2);
+        controller.set_monitor_gain(0.1);
+        activate.send(()).unwrap();
+        initialized.recv_timeout(Duration::from_secs(1)).unwrap();
+        for _ in 0..62 {
+            controller.refresh_devices().unwrap();
+        }
+        assert!(controller.refresh_devices().is_err());
+        let sequence = controller.shared.next_command.load(Ordering::Acquire);
+        controller.set_gains(0.9, 0.8);
+        controller.set_monitor_gain(0.75);
+        assert_eq!(
+            controller.shared.next_command.load(Ordering::Acquire),
+            sequence
+        );
+        release.send(()).unwrap();
+        assert_eq!(result.recv_timeout(Duration::from_secs(1)).unwrap(), 0);
+    }
     #[test]
     fn stalled_owner_never_blocks_construction_poll_pause_or_drop() {
         let (release, blocked) = bounded::<()>(1);
